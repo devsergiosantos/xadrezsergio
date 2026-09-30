@@ -45,7 +45,7 @@ st.markdown("""
 
 # Verificação inicial do pacote pymongo
 if not PYMONGO_INSTALADO:
-    st.error("⚠️️ O pacote `pymongo` não está instalado no ambiente!")
+    st.error("⚠ O pacote `pymongo` não está instalado no ambiente!")
     st.info("Crie um arquivo chamado `requirements.txt` no seu repositório com o conteúdo:\n\n```text\nstreamlit\npymongo\ndnspython\n```")
     st.stop()
 
@@ -56,7 +56,8 @@ MONGO_URI = st.secrets.get("MONGO_URI", "")
 def get_database():
     if not MONGO_URI:
         return None
-    client = MongoClient("MONGO_URI")
+    # CORREÇÃO: Remoção das aspas em MONGO_URI
+    client = MongoClient(MONGO_URI)
     return client["xadrez_torneio"]
 
 db = None
@@ -242,7 +243,7 @@ with tab_partidas:
 # ABA 2: TEMPORIZADOR DE PARTIDA
 # ==========================================
 with tab_timer:
-    st.subheader("⏱️️ Relógio de Rodada")
+    st.subheader("⏱ Relógio de Rodada")
     
     minutos = st.number_input("Definir tempo (minutos):", min_value=1, max_value=60, value=5, step=1)
     
