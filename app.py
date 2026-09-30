@@ -40,7 +40,7 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 # --- CONEXÃO COM O MONGODB ---
-MONGO_URI = st.secrets.get("MONGO_URI", "mongodb+srv://<usuario>:<senha>@cluster0.abcde.mongodb.net/?retryWrites=true&w=majority")
+MONGO_URI = st.secrets.get(MONGO_URI)
 
 @st.cache_resource
 def get_database():
