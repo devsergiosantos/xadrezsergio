@@ -1,20 +1,25 @@
 import random
 import time
 import streamlit as st
-from pymongo import MongoClient
 
-# --- CONFIGURAÇÃO DE PÁGINA (OTIMIZADA PARA MOBILE E DESKTOP) ---
+# --- TRATAMENTO DE IMPORTAÇÃO ---
+try:
+    from pymongo import MongoClient
+    PYMONGO_INSTALADO = True
+except ImportError:
+    PYMONGO_INSTALADO = False
+
+# --- CONFIGURAÇÃO DE PÁGINA (RESPONSIVO PARA MOBILE, TABLET E PC) ---
 st.set_page_config(
-    page_title="Torneio de Xadrez",
+    page_title="Torneio de Xadrez Escolar",
     page_icon="♟️",
     layout="wide",
-    initial_sidebar_state="collapsed"  # Começa recolhido no celular para ganhar espaço
+    initial_sidebar_state="collapsed"
 )
 
-# Estilo CSS customizado para melhorar a usabilidade em dispositivos móveis
+# Estilo CSS customizado para touchscreen
 st.markdown("""
     <style>
-        /* Aumenta a área de clique para facilitar o uso no touch */
         .stButton>button {
             width: 100%;
             height: 3em;
@@ -22,7 +27,6 @@ st.markdown("""
             font-weight: bold;
             border-radius: 8px;
         }
-        /* Ajuste do tamanho dos textos dos botões de rádio (vencedores) */
         div[role="radiogroup"] label {
             padding: 10px;
             background-color: #f0f2f6;
@@ -39,22 +43,37 @@ st.markdown("""
     </style>
 """, unsafe_allow_html=True)
 
+# Verificação inicial do pacote pymongo
+if not PYMONGO_INSTALADO:
+    st.error("⚠️️ O pacote `pymongo` não está instalado no ambiente!")
+    st.info("Crie um arquivo chamado `requirements.txt` no seu repositório com o conteúdo:\n\n```text\nstreamlit\npymongo\ndnspython\n```")
+    st.stop()
+
 # --- CONEXÃO COM O MONGODB ---
-MONGO_URI = st.secrets.get(MONGO_URI)
+MONGO_URI = st.secrets.get("MONGO_URI", "")
 
 @st.cache_resource
 def get_database():
-    client = MongoClient(MONGO_URI)
+    if not MONGO_URI:
+        return None
+    client = MongoClient("MONGO_URI")
     return client["xadrez_torneio"]
 
-try:
-    db = get_database()
-    colecao_alunos = db["alunos"]
-    colecao_confrontos = db["confrontos"]
-except Exception as e:
-    st.error("Erro ao conectar ao Banco de Dados. Verifique a chave MONGO_URI nas configurações.")
+db = None
+if MONGO_URI:
+    try:
+        db = get_database()
+        colecao_alunos = db["alunos"]
+        colecao_confrontos = db["confrontos"]
+    except Exception as e:
+        st.error(f"Erro ao conectar ao MongoDB: {e}")
 
-# --- FUNÇÕES DE BANCO DE DADOS ---
+if db is None:
+    st.warning("⚠️ **Conexão com o MongoDB não configurada.**")
+    st.info("Adicione a variável `MONGO_URI` em **Settings > Secrets** no Streamlit Cloud para salvar os dados na nuvem.")
+    st.stop()
+
+# --- FUNÇÕES DO BANCO DE DADOS ---
 def carregar_alunos():
     return list(colecao_alunos.find({}, {"_id": 0}))
 
@@ -81,7 +100,7 @@ if "timer_running" not in st.session_state:
 if "seconds_remaining" not in st.session_state:
     st.session_state.seconds_remaining = 300
 
-# --- BARRA LATERAL (MENU & CADASTRO) ---
+# --- BARRA LATERAL (MENU DE CADASTRO) ---
 with st.sidebar:
     st.header("⚙️ Configurações & Cadastro")
     nome_torneio = st.text_input("Nome do Torneio:", "Torneio de Xadrez Escolar")
@@ -102,7 +121,7 @@ with st.sidebar:
         else:
             st.warning("Digite o nome do aluno.")
 
-# --- NAVEGAÇÃO PRINCIPAL POR ABAS ---
+# --- INTERFACE PRINCIPAL EM ABAS ---
 st.title(f"♟️ {nome_torneio}")
 
 tab_partidas, tab_timer, tab_alunos = st.tabs(["⚔️ Partidas", "⏱️ Temporizador", "👥 Alunos Cadastrados"])
@@ -115,17 +134,16 @@ with tab_partidas:
     turmas_disponiveis = sorted(list(set(a["turma"] for a in alunos_db)))
 
     if not turmas_disponiveis:
-        st.info("👋 Nenhum aluno cadastrado. Abra o menu lateral (⚙️) para cadastrar os alunos.")
+        st.info("👋 Nenhum aluno cadastrado. Abra o menu lateral (⚙️ no canto superior esquerdo) para cadastrar os alunos.")
     else:
         turma_selecionada = st.selectbox("🎯 Selecione a Turma:", turmas_disponiveis)
         alunos_filtrados = [a["nome"] for a in alunos_db if a["turma"] == turma_selecionada]
 
         st.caption(f"Total de alunos na turma **{turma_selecionada}**: {len(alunos_filtrados)}")
 
-        # Botões de Ação da Turma
         col_sort, col_res = st.columns(2)
         with col_sort:
-            btn_iniciar = st.button("🎲 Sorteiar Fase 1", type="primary", use_container_width=True)
+            btn_iniciar = st.button("🎲 Sortear Fase 1", type="primary", use_container_width=True)
         with col_res:
             btn_limpar = st.button("🗑️ Reiniciar Turma", use_container_width=True)
 
@@ -153,7 +171,6 @@ with tab_partidas:
             st.toast("Torneio zerado para esta turma.", icon="🧹")
             st.rerun()
 
-        # Obter Maior Fase Atual
         fases_registradas = colecao_confrontos.find({"turma": turma_selecionada}).sort("fase", -1)
         fase_atual = fases_registradas[0]["fase"] if colecao_confrontos.count_documents({"turma": turma_selecionada}) > 0 else 1
         confrontos_fase = carregar_confrontos(turma_selecionada, fase_atual)
@@ -163,7 +180,6 @@ with tab_partidas:
         if confrontos_fase:
             st.subheader(f"🚩 Fase {fase_atual} - {turma_selecionada}")
 
-            # Tela de Campeão
             if len(confrontos_fase) == 1 and confrontos_fase[0]["j2"] is None:
                 st.balloons()
                 st.success(f"🏆 **CAMPEÃO DO {turma_selecionada.upper()}: {confrontos_fase[0]['j1']}** 🏆")
@@ -226,7 +242,7 @@ with tab_partidas:
 # ABA 2: TEMPORIZADOR DE PARTIDA
 # ==========================================
 with tab_timer:
-    st.subheader("⏱️ Relógio de Rodada")
+    st.subheader("⏱️️ Relógio de Rodada")
     
     minutos = st.number_input("Definir tempo (minutos):", min_value=1, max_value=60, value=5, step=1)
     
@@ -269,14 +285,13 @@ with tab_timer:
         )
 
 # ==========================================
-# ABA 3: LISTA E CONTROLE DE ALUNOS
+# ABA 3: LISTA DE ALUNOS
 # ==========================================
 with tab_alunos:
     st.subheader("📋 Lista Geral de Inscritos")
     alunos_db = carregar_alunos()
     
     if alunos_db:
-        # Tabela formatada e responsiva
         st.dataframe(alunos_db, use_container_width=True, hide_index=True)
     else:
         st.info("Nenhum aluno cadastrado ainda.")
