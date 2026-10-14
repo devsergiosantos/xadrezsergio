@@ -161,11 +161,10 @@ with st.sidebar:
         else:
             st.warning("Digite o nome do aluno.")
 
-# --- COMPONENTE DO RELÓGIO FIXO NA PRIMEIRA PÁGINA (CANTO ESQUERDO) ---
+# --- COMPONENTE DO RELÓGIO FIXO NA PRIMEIRA PÁGINA (CANTO ESQUERDO) COM CONTAGEM EM TEMPO REAL ---
 def renderizar_relogio_lateral():
     with st.container():
         st.markdown("### ⏱️ Relógio de Partida")
-        mins, secs = divmod(st.session_state.seconds_remaining, 60)
         
         # Modo Ampliado vs Padrão
         if st.session_state.timer_expanded:
@@ -175,14 +174,43 @@ def renderizar_relogio_lateral():
             font_size = "28px"
             container_bg = "transparent"
 
-        cor_texto = "#ff4b4b" if st.session_state.seconds_remaining == 0 else ("inherit")
-        
-        st.markdown(
-            f"""<div style="text-align: center; padding: 10px; background-color: {container_bg}; border-radius: 10px;">
-                <span style="font-size: {font_size}; font-weight: bold; color: {cor_texto};">{mins:02d}:{secs:02d}</span>
-            </div>""",
-            unsafe_allow_html=True
-        )
+        # Script JS integrado para atualizar a contagem decrescente segundo a segundo suavemente na tela
+        segundos_atuais = st.session_state.seconds_remaining
+        rodando = "true" if st.session_state.timer_running else "false"
+
+        relogio_html = f"""
+        <div style="text-align: center; padding: 10px; background-color: {container_bg}; border-radius: 10px;">
+            <span id="relogio-visor" style="font-size: {font_size}; font-weight: bold; color: {'#ff4b4b' if segundos_atuais == 0 else 'inherit'};">00:00</span>
+        </div>
+        <script>
+            let tempoRestante = {segundos_atuais};
+            let estaRodando = {rodando};
+
+            function formatarTempo(s) {{
+                let m = Math.floor(s / 60);
+                let sec = s % 60;
+                return String(m).padStart(2, '0') + ":" + String(sec).padStart(2, '0');
+            }}
+
+            document.getElementById('relogio-visor').innerText = formatarTempo(tempoRestante);
+
+            if (window.intervaloRelogio) {{
+                clearInterval(window.intervaloRelogio);
+            }}
+
+            if (estaRodando && tempoRestante > 0) {{
+                window.intervaloRelogio = setInterval(() => {{
+                    if (tempoRestante > 0) {{
+                        tempoRestante--;
+                        document.getElementById('relogio-visor').innerText = formatarTempo(tempoRestante);
+                    }} else {{
+                        clearInterval(window.intervaloRelogio);
+                    }}
+                }}, 1000);
+            }}
+        </script>
+        """
+        st.markdown(relogio_html, unsafe_allow_html=True)
 
         col_e1, col_e2 = st.columns(2)
         with col_e1:
@@ -289,7 +317,6 @@ with tab_xadrez:
                     todos_selecionados = True
 
                     with st.form(key=f"form_fase_xadrez_{fase_atual}_{turma_selecionada}"):
-                        # Layout refinado: 4 duplas por tela (exibidas em colunas duplas ou blocos organizados)
                         for idx, c in enumerate(confrontos_fase):
                             st.markdown(f"""<div class="dupla-card"><b>Partida {idx + 1}</b></div>""", unsafe_allow_html=True)
                             j1, j2 = c["j1"], c["j2"]
@@ -420,7 +447,7 @@ with tab_dama:
                             random.shuffle(vencedores_dama)
                             for i in range(0, len(vencedores_dama), 2):
                                 if i + 1 < len(vencedores_dama):
-                                 novos.append({"j1": vencedores_dama[i], "j2": vencedores_dama[i+1], "vencedor": None})
+                                    novos.append({"j1": vencedores_dama[i], "j2": vencedores_dama[i+1], "vencedor": None})
                                 else:
                                     novos.append({"j1": vencedores_dama[i], "j2": "BYE (Passa direto)", "vencedor": vencedores_dama[i]})
                             salvar_confrontos(turma_dama_sel, "Dama", fase_dama_atual + 1, novos)
