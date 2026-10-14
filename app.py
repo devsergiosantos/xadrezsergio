@@ -9,6 +9,12 @@ try:
 except ImportError:
     PYMONGO_INSTALADO = False
 
+try:
+    from streamlit_autorefresh import st_autorefresh
+    AUTOREFRESH_INSTALADO = True
+except ImportError:
+    AUTOREFRESH_INSTALADO = False
+
 # --- CONFIGURAÇÃO DE PÁGINA (RESPONSIVO PARA MOBILE, TABLET E PC) ---
 st.set_page_config(
     page_title="Torneio de Jogos de Tabuleiro Escolar",
@@ -55,10 +61,15 @@ st.markdown("""
     </style>
 """, unsafe_allow_html=True)
 
-# Verificação inicial do pacote pymongo
+# Verificação inicial de pacotes essenciais
 if not PYMONGO_INSTALADO:
     st.error("⚠ O pacote `pymongo` não está instalado no ambiente!")
-    st.info("Crie um arquivo chamado `requirements.txt` no seu repositório com o conteúdo:\n\n```text\nstreamlit\npymongo\ndnspython\n```")
+    st.info("Crie um arquivo chamado `requirements.txt` no seu repositório com:\n\n```text\nstreamlit\npymongo\ndnspython\nstreamlit-autorefresh\n```")
+    st.stop()
+
+if not AUTOREFRESH_INSTALADO:
+    st.error("⚠ O pacote `streamlit-autorefresh` não está instalado no ambiente!")
+    st.info("Adicione `streamlit-autorefresh` ao seu arquivo `requirements.txt`.")
     st.stop()
 
 # --- CONEXÃO COM O MONGODB ---
@@ -117,7 +128,7 @@ def salvar_podio(turma, modalidade, podio_dict):
 def carregar_historico():
     return list(colecao_historico.find({}, {"_id": 0}))
 
-# --- ESTADO DO TEMPORIZADOR EM BACKGROUND ---
+# --- ESTADO DO TEMPORIZADOR ---
 if "timer_running" not in st.session_state:
     st.session_state.timer_running = False
 if "seconds_remaining" not in st.session_state:
@@ -127,18 +138,18 @@ if "last_tick" not in st.session_state:
 if "timer_expanded" not in st.session_state:
     st.session_state.timer_expanded = False
 
-# Atualização lógica do relógio global rodando em background
-def atualizar_relogio():
-    if st.session_state.timer_running:
-        agora = time.time()
-        passado = int(agora - st.session_state.last_tick)
-        if passado > 0:
-            st.session_state.seconds_remaining = max(0, st.session_state.seconds_remaining - passado)
-            st.session_state.last_tick = agora
-            if st.session_state.seconds_remaining == 0:
-                st.session_state.timer_running = False
+# Lógica de contagem em tempo real rodando em background com auto-refresh
+if st.session_state.timer_running:
+    agora = time.time()
+    passado = int(agora - st.session_state.last_tick)
+    if passado > 0:
+        st.session_state.seconds_remaining = max(0, st.session_state.seconds_remaining - passado)
+        st.session_state.last_tick = agora
+        if st.session_state.seconds_remaining == 0:
+            st.session_state.timer_running = False
 
-atualizar_relogio()
+    # Atualiza a tela a cada 1 segundo exato se o relógio estiver ativo
+    st_autorefresh(interval=1000, key="relogio_counter")
 
 # --- BARRA LATERAL (MENU DE CADASTRO) ---
 with st.sidebar:
@@ -161,12 +172,11 @@ with st.sidebar:
         else:
             st.warning("Digite o nome do aluno.")
 
-# --- COMPONENTE DO RELÓGIO FIXO NA PRIMEIRA PÁGINA (CANTO ESQUERDO) COM CONTAGEM EM TEMPO REAL ---
+# --- COMPONENTE DO RELÓGIO FIXO NA PRIMEIRA PÁGINA (CANTO ESQUERDO) ---
 def renderizar_relogio_lateral():
     with st.container():
         st.markdown("### ⏱️ Relógio de Partida")
         
-        # Modo Ampliado vs Padrão
         if st.session_state.timer_expanded:
             font_size = "60px"
             container_bg = "#262730" if st.get_option("theme.base") == "dark" else "#f0f2f6"
@@ -174,43 +184,15 @@ def renderizar_relogio_lateral():
             font_size = "28px"
             container_bg = "transparent"
 
-        # Script JS integrado para atualizar a contagem decrescente segundo a segundo suavemente na tela
-        segundos_atuais = st.session_state.seconds_remaining
-        rodando = "true" if st.session_state.timer_running else "false"
+        mins, secs = divmod(st.session_state.seconds_remaining, 60)
+        cor_texto = "#ff4b4b" if st.session_state.seconds_remaining == 0 else "inherit"
 
-        relogio_html = f"""
-        <div style="text-align: center; padding: 10px; background-color: {container_bg}; border-radius: 10px;">
-            <span id="relogio-visor" style="font-size: {font_size}; font-weight: bold; color: {'#ff4b4b' if segundos_atuais == 0 else 'inherit'};">00:00</span>
-        </div>
-        <script>
-            let tempoRestante = {segundos_atuais};
-            let estaRodando = {rodando};
-
-            function formatarTempo(s) {{
-                let m = Math.floor(s / 60);
-                let sec = s % 60;
-                return String(m).padStart(2, '0') + ":" + String(sec).padStart(2, '0');
-            }}
-
-            document.getElementById('relogio-visor').innerText = formatarTempo(tempoRestante);
-
-            if (window.intervaloRelogio) {{
-                clearInterval(window.intervaloRelogio);
-            }}
-
-            if (estaRodando && tempoRestante > 0) {{
-                window.intervaloRelogio = setInterval(() => {{
-                    if (tempoRestante > 0) {{
-                        tempoRestante--;
-                        document.getElementById('relogio-visor').innerText = formatarTempo(tempoRestante);
-                    }} else {{
-                        clearInterval(window.intervaloRelogio);
-                    }}
-                }}, 1000);
-            }}
-        </script>
-        """
-        st.markdown(relogio_html, unsafe_allow_html=True)
+        st.markdown(
+            f"""<div style="text-align: center; padding: 10px; background-color: {container_bg}; border-radius: 10px;">
+                <span style="font-size: {font_size}; font-weight: bold; color: {cor_texto};">{mins:02d}:{secs:02d}</span>
+            </div>""",
+            unsafe_allow_html=True
+        )
 
         col_e1, col_e2 = st.columns(2)
         with col_e1:
