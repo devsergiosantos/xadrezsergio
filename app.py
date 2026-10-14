@@ -23,7 +23,7 @@ st.set_page_config(
     initial_sidebar_state="collapsed"
 )
 
-# Estilo CSS customizado para touchscreen, relógio flutuante e grid de duplas
+# Estilo CSS customizado para touchscreen, relógio flutuante, grid e botão de alerta pequeno
 st.markdown("""
     <style>
         .stButton>button {
@@ -48,6 +48,21 @@ st.markdown("""
             border-radius: 10px;
             margin-bottom: 10px;
             box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+        }
+        /* Estilo do botão de alerta vermelho de 1 minuto */
+        div.stButton > button.btn-alerta-minuto {
+            background-color: #ff2b2b !important;
+            color: white !important;
+            height: 2.2em !important;
+            font-size: 13px !important;
+            border: none !important;
+            box-shadow: 0 0 10px rgba(255, 43, 43, 0.6);
+            animation: pulse 1.5s infinite;
+        }
+        @keyframes pulse {
+            0% { transform: scale(1); }
+            50% { transform: scale(1.03); }
+            100% { transform: scale(1); }
         }
         @media (prefers-color-scheme: dark) {
             div[role="radiogroup"] label {
@@ -148,7 +163,6 @@ if st.session_state.timer_running:
         if st.session_state.seconds_remaining == 0:
             st.session_state.timer_running = False
 
-    # Atualiza a tela a cada 1 segundo exato se o relógio estiver ativo
     st_autorefresh(interval=1000, key="relogio_counter")
 
 # --- BARRA LATERAL (MENU DE CADASTRO) ---
@@ -194,6 +208,10 @@ def renderizar_relogio_lateral():
             unsafe_allow_html=True
         )
 
+        # Botão vermelho pequeno exibido quando resta 1 minuto ou menos (e o tempo ainda não zerou)
+        if 0 < st.session_state.seconds_remaining <= 60:
+            st.button("⚠️ RESTA 1 MINUTO!", key="btn_alerta_um_minuto", use_container_width=True, type="primary")
+
         col_e1, col_e2 = st.columns(2)
         with col_e1:
             if not st.session_state.timer_running:
@@ -217,7 +235,6 @@ def renderizar_relogio_lateral():
             st.rerun()
 
         if st.session_state.seconds_remaining == 0:
-            st.balloons()
             st.error("🚨 **TEMPO ESGOTADO!**")
 
 # --- INTERFACE PRINCIPAL EM ABAS ---
@@ -290,7 +307,6 @@ with tab_xadrez:
                 st.markdown(f"#### 🚩 Fase {fase_atual} - {turma_selecionada}")
 
                 if len(confrontos_fase) == 1 and confrontos_fase[0]["j2"] is None:
-                    st.balloons()
                     campeao = confrontos_fase[0]['j1']
                     st.success(f"🏆 **CAMPEÃO DO {turma_selecionada.upper()}: {campeao}** 🏆")
                     salvar_podio(turma_selecionada, "Xadrez", {"1º": campeao, "2º": "Finalista", "3º": "Semifinalista"})
