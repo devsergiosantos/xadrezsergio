@@ -1,3 +1,5 @@
 streamlit
 pymongo
 dnspython
+time
+streamlit-autorefresh
