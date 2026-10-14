@@ -150,6 +150,9 @@ def salvar_podio(turma, modalidade, podio_dict):
 def carregar_historico():
     return list(colecao_historico.find({}, {"_id": 0}))
 
+def resetar_historico():
+    colecao_historico.delete_many({})
+
 # --- ESTADO DO TEMPORIZADOR ---
 if "timer_running" not in st.session_state:
     st.session_state.timer_running = False
@@ -547,7 +550,32 @@ with tab_domino:
 # ABA 4: HISTÓRICO DE VENCEDORES (1º, 2º e 3º LUGAR)
 # ==========================================
 with tab_historico:
-    st.subheader("🏆 HISTÓRICO GERAL DE VENCEDORES")
+    col_hist_title, col_hist_btn = st.columns([3, 1])
+    
+    with col_hist_title:
+        st.subheader("🏆 HISTÓRICO GERAL DE VENCEDORES")
+    
+    with col_hist_btn:
+        if st.button("🗑️ Zerar Histórico", use_container_width=True):
+            st.session_state["confirmar_zerar_historico"] = True
+
+    # Diálogo de confirmação para evitar exclusão acidental
+    if st.session_state.get("confirmar_zerar_historico", False):
+        st.warning("⚠️ Tem certeza de que deseja apagar **todo** o histórico de campeões?")
+        col_c1, col_c2 = st.columns(2)
+        with col_c1:
+            if st.button("✅ Sim, apagar tudo", type="primary", use_container_width=True):
+                resetar_historico()
+                st.session_state["confirmar_zerar_historico"] = False
+                st.toast("Histórico zerado com sucesso!", icon="🧹")
+                st.rerun()
+        with col_c2:
+            if st.button("❌ Cancelar", use_container_width=True):
+                st.session_state["confirmar_zerar_historico"] = False
+                st.rerun()
+
+    st.divider()
+
     historico_db = carregar_historico()
 
     if historico_db:
