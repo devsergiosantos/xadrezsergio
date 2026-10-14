@@ -23,9 +23,17 @@ st.set_page_config(
     initial_sidebar_state="collapsed"
 )
 
-# Estilo CSS customizado para touchscreen, relógio flutuante, grid e botão de alerta pequeno
+# Estilo CSS customizado para destacar os menus (Xadrez, Dama, Dominó), touchscreen e relógio
 st.markdown("""
     <style>
+        /* Destaque Especial nos Títulos das Abas de Menu */
+        button[data-baseweb="tab"] {
+            font-size: 18px !important;
+            font-weight: 900 !important;
+            letter-spacing: 1px;
+            padding: 10px 16px !important;
+        }
+        
         .stButton>button {
             width: 100%;
             height: 3em;
@@ -49,7 +57,6 @@ st.markdown("""
             margin-bottom: 10px;
             box-shadow: 0 2px 4px rgba(0,0,0,0.05);
         }
-        /* Estilo do botão de alerta vermelho de 1 minuto */
         div.stButton > button.btn-alerta-minuto {
             background-color: #ff2b2b !important;
             color: white !important;
@@ -237,11 +244,11 @@ def renderizar_relogio_lateral():
         if st.session_state.seconds_remaining == 0:
             st.error("🚨 **TEMPO ESGOTADO!**")
 
-# --- INTERFACE PRINCIPAL EM ABAS ---
+# --- INTERFACE PRINCIPAL EM ABAS (NOMES DOS MENUS DESTACADOS) ---
 st.title(f"♟️ {nome_torneio}")
 
 tab_xadrez, tab_dama, tab_domino, tab_historico, tab_alunos = st.tabs([
-    "⚔️ Xadrez", "👑 Dama", "🀄 Dominó", "🏆 Histórico", "👥 Alunos"
+    "⚔️ XADREZ", "👑 DAMA", "🀄 DOMINÓ", "🏆 HISTÓRICO", "👥 ALUNOS"
 ])
 
 # ==========================================
@@ -254,14 +261,14 @@ with tab_xadrez:
         renderizar_relogio_lateral()
         
     with col_conteudo_dir:
-        st.subheader("⚔️ Torneio de Xadrez")
+        st.markdown("## ⚔️ **MODALIDADE: XADREZ**")
         alunos_db = carregar_alunos()
         turmas_disponiveis = sorted(list(set(a["turma"] for a in alunos_db)))
 
         if not turmas_disponiveis:
             st.info("👋 Nenhum aluno cadastrado. Use o menu lateral (⚙️) para cadastrar os alunos.")
         else:
-            turma_selecionada = st.selectbox("🎯 Selecione a Turma:", turmas_disponiveis, key="turma_xadrez")
+            turma_selecionada = st.selectbox("🎯 Selecione a Turma para Xadrez:", turmas_disponiveis, key="turma_xadrez")
             pontos_por_vitoria = st.radio("🏅 Pontuação por vitória:", [2, 10], horizontal=True, key="pts_xadrez")
             
             alunos_filtrados = [a["nome"] for a in alunos_db if a["turma"] == turma_selecionada]
@@ -269,7 +276,7 @@ with tab_xadrez:
 
             col_sort, col_res = st.columns(2)
             with col_sort:
-                btn_iniciar = st.button("🎲 Sortear Fase 1", type="primary", use_container_width=True, key="sort_x")
+                btn_iniciar = st.button("🎲 Sortear Fase 1 (XADREZ)", type="primary", use_container_width=True, key="sort_x")
             with col_res:
                 btn_limpar = st.button("🗑️ Reiniciar Torneio", use_container_width=True, key="limp_x")
 
@@ -289,7 +296,7 @@ with tab_xadrez:
                             confrontos.append({"j1": jogadores[i], "j2": "BYE (Passa direto)", "vencedor": jogadores[i]})
 
                     salvar_confrontos(turma_selecionada, "Xadrez", 1, confrontos)
-                    st.success(f"Fase 1 sorteada para o {turma_selecionada}!")
+                    st.success(f"Fase 1 de XADREZ sorteada para o {turma_selecionada}!")
                     st.rerun()
 
             if btn_limpar:
@@ -304,11 +311,11 @@ with tab_xadrez:
             st.divider()
 
             if confrontos_fase:
-                st.markdown(f"#### 🚩 Fase {fase_atual} - {turma_selecionada}")
+                st.markdown(f"#### 🚩 Fase {fase_atual} - XADREZ ({turma_selecionada})")
 
                 if len(confrontos_fase) == 1 and confrontos_fase[0]["j2"] is None:
                     campeao = confrontos_fase[0]['j1']
-                    st.success(f"🏆 **CAMPEÃO DO {turma_selecionada.upper()}: {campeao}** 🏆")
+                    st.success(f"🏆 **CAMPEÃO DE XADREZ DO {turma_selecionada.upper()}: {campeao}** 🏆")
                     salvar_podio(turma_selecionada, "Xadrez", {"1º": campeao, "2º": "Finalista", "3º": "Semifinalista"})
                 else:
                     vencedores = []
@@ -316,7 +323,7 @@ with tab_xadrez:
 
                     with st.form(key=f"form_fase_xadrez_{fase_atual}_{turma_selecionada}"):
                         for idx, c in enumerate(confrontos_fase):
-                            st.markdown(f"""<div class="dupla-card"><b>Partida {idx + 1}</b></div>""", unsafe_allow_html=True)
+                            st.markdown(f"""<div class="dupla-card"><b>Partida {idx + 1} (XADREZ)</b></div>""", unsafe_allow_html=True)
                             j1, j2 = c["j1"], c["j2"]
 
                             if j2 == "BYE (Passa direto)":
@@ -366,22 +373,22 @@ with tab_xadrez:
 # ABA 2: DAMA (2 ALUNOS POR PARTIDA)
 # ==========================================
 with tab_dama:
-    st.subheader("👑 Torneio de Dama (2 Alunos por Partida)")
+    st.markdown("## 👑 **MODALIDADE: DAMA (2 JOGADORES POR PARTIDA)**")
     alunos_db = carregar_alunos()
     turmas_dama = sorted(list(set(a["turma"] for a in alunos_db)))
 
     if not turmas_dama:
         st.info("👋 Cadastre alunos na barra lateral para iniciar.")
     else:
-        turma_dama_sel = st.selectbox("🎯 Selecione a Turma para Dama:", turmas_dama, key="turma_dama")
+        turma_dama_sel = st.selectbox("🎯 Selecione a Turma para DAMA:", turmas_dama, key="turma_dama")
         pts_dama = st.radio("🏅 Pontuação por vitória:", [2, 10], horizontal=True, key="pts_dama")
         alunos_dama_filtrados = [a["nome"] for a in alunos_db if a["turma"] == turma_dama_sel]
 
         col_sd1, col_sd2 = st.columns(2)
         with col_sd1:
-            btn_sort_dama = st.button("🎲 Sortear Partidas de Dama", type="primary", use_container_width=True)
+            btn_sort_dama = st.button("🎲 Sortear Partidas de DAMA", type="primary", use_container_width=True)
         with col_sd2:
-            btn_limp_dama = st.button("🗑️ Reiniciar Dama", use_container_width=True)
+            btn_limp_dama = st.button("🗑️ Reiniciar DAMA", use_container_width=True)
 
         if btn_sort_dama:
             if len(alunos_dama_filtrados) < 2:
@@ -397,12 +404,12 @@ with tab_dama:
                     else:
                         confrontos.append({"j1": jogadores[i], "j2": "BYE (Passa direto)", "vencedor": jogadores[i]})
                 salvar_confrontos(turma_dama_sel, "Dama", 1, confrontos)
-                st.success("Sorteio de Dama realizado!")
+                st.success("Sorteio de DAMA realizado com sucesso!")
                 st.rerun()
 
         if btn_limp_dama:
             resetar_torneio_turma(turma_dama_sel, "Dama")
-            st.toast("Dama reiniciada.", icon="🧹")
+            st.toast("Torneio de DAMA reiniciado.", icon="🧹")
             st.rerun()
 
         fases_dama = list(colecao_confrontos.find({"turma": turma_dama_sel, "modalidade": "Dama"}).sort("fase", -1))
@@ -410,13 +417,13 @@ with tab_dama:
         confs_dama = carregar_confrontos(turma_dama_sel, "Dama", fase_dama_atual)
 
         if confs_dama:
-            st.markdown(f"#### Fase {fase_dama_atual} - Dama ({turma_dama_sel})")
+            st.markdown(f"#### Fase {fase_dama_atual} - DAMA ({turma_dama_sel})")
             vencedores_dama = []
             todos_ok = True
 
             with st.form(key=f"form_dama_{fase_dama_atual}_{turma_dama_sel}"):
                 for idx, c in enumerate(confs_dama):
-                    st.markdown(f"""<div class="dupla-card"><b>Partida Dama {idx + 1}</b></div>""", unsafe_allow_html=True)
+                    st.markdown(f"""<div class="dupla-card"><b>Partida DAMA {idx + 1}</b></div>""", unsafe_allow_html=True)
                     j1, j2 = c["j1"], c["j2"]
                     if j2 == "BYE (Passa direto)":
                         st.info(f"⚪ **{j1}** avança automaticamente.")
@@ -430,7 +437,7 @@ with tab_dama:
                         else:
                             todos_ok = False
 
-                if st.form_submit_button("Avançar Dama ➡️", use_container_width=True):
+                if st.form_submit_button("Avançar DAMA ➡️", use_container_width=True):
                     if not todos_ok:
                         st.error("Selecione todos os vencedores.")
                     else:
@@ -438,7 +445,7 @@ with tab_dama:
                         if len(vencedores_dama) == 1:
                             salvar_confrontos(turma_dama_sel, "Dama", fase_dama_atual + 1, [{"j1": vencedores_dama[0], "j2": None, "vencedor": vencedores_dama[0]}])
                             salvar_podio(turma_dama_sel, "Dama", {"1º": vencedores_dama[0], "2º": "Finalista", "3º": "Semifinalista"})
-                            st.success(f"🏆 Campeão de Dama: {vencedores_dama[0]}!")
+                            st.success(f"🏆 Campeão de DAMA: {vencedores_dama[0]}!")
                             st.rerun()
                         else:
                             novos = []
@@ -455,14 +462,14 @@ with tab_dama:
 # ABA 3: DOMINÓ (2, 3 OU 4 ALUNOS POR PARTIDA)
 # ==========================================
 with tab_domino:
-    st.subheader("🀄 Torneio de Dominó")
+    st.markdown("## 🀄 **MODALIDADE: DOMINÓ (2, 3 OU 4 JOGADORES)**")
     alunos_db = carregar_alunos()
     turmas_domino = sorted(list(set(a["turma"] for a in alunos_db)))
 
     if not turmas_domino:
         st.info("👋 Cadastre alunos na barra lateral para iniciar.")
     else:
-        turma_dom_sel = st.selectbox("🎯 Selecione a Turma para Dominó:", turmas_domino, key="turma_dom")
+        turma_dom_sel = st.selectbox("🎯 Selecione a Turma para DOMINÓ:", turmas_domino, key="turma_dom")
         tamanho_mesa = st.selectbox("👥 Alunos por Mesa/Partida:", [2, 3, 4], key="tam_mesa_dom")
         pts_dom = st.radio("🏅 Pontuação por vitória:", [2, 10], horizontal=True, key="pts_dom")
         
@@ -470,9 +477,9 @@ with tab_domino:
 
         col_dom1, col_dom2 = st.columns(2)
         with col_dom1:
-            btn_sort_dom = st.button("🎲 Sortear Mesas de Dominó", type="primary", use_container_width=True)
+            btn_sort_dom = st.button("🎲 Sortear Mesas de DOMINÓ", type="primary", use_container_width=True)
         with col_dom2:
-            btn_limp_dom = st.button("🗑️ Reiniciar Dominó", use_container_width=True)
+            btn_limp_dom = st.button("🗑️ Reiniciar DOMINÓ", use_container_width=True)
 
         if btn_sort_dom:
             if len(alunos_dom_filtrados) < tamanho_mesa:
@@ -488,12 +495,12 @@ with tab_domino:
                     mesas.append({"jogadores": grupo, "vencedor": None})
                 
                 salvar_confrontos(turma_dom_sel, "Dominó", 1, mesas)
-                st.success("Sorteio de Dominó realizado com sucesso!")
+                st.success("Sorteio de DOMINÓ realizado com sucesso!")
                 st.rerun()
 
         if btn_limp_dom:
             resetar_torneio_turma(turma_dom_sel, "Dominó")
-            st.toast("Dominó reiniciado.", icon="🧹")
+            st.toast("Torneio de DOMINÓ reiniciado.", icon="🧹")
             st.rerun()
 
         fases_dom = list(colecao_confrontos.find({"turma": turma_dom_sel, "modalidade": "Dominó"}).sort("fase", -1))
@@ -501,13 +508,13 @@ with tab_domino:
         confs_dom = carregar_confrontos(turma_dom_sel, "Dominó", fase_dom_atual)
 
         if confs_dom:
-            st.markdown(f"#### Fase {fase_dom_atual} - Dominó ({turma_dom_sel})")
+            st.markdown(f"#### Fase {fase_dom_atual} - DOMINÓ ({turma_dom_sel})")
             vencedores_dom = []
             todos_ok_dom = True
 
             with st.form(key=f"form_dom_{fase_dom_atual}_{turma_dom_sel}"):
                 for idx, m in enumerate(confs_dom):
-                    st.markdown(f"""<div class="dupla-card"><b>Mesa {idx + 1}</b> (Participantes: {', '.join(m['jogadores'])})</div>""", unsafe_allow_html=True)
+                    st.markdown(f"""<div class="dupla-card"><b>Mesa {idx + 1} (DOMINÓ)</b> (Participantes: {', '.join(m['jogadores'])})</div>""", unsafe_allow_html=True)
                     opcoes = ["Selecione o vencedor..."] + m["jogadores"]
                     index_padrao = opcoes.index(m["vencedor"]) if m.get("vencedor") in opcoes else 0
                     
@@ -517,7 +524,7 @@ with tab_domino:
                     else:
                         todos_ok_dom = False
 
-                if st.form_submit_button("Avançar Dominó ➡️", use_container_width=True):
+                if st.form_submit_button("Avançar DOMINÓ ➡️", use_container_width=True):
                     if not todos_ok_dom:
                         st.error("Selecione o vencedor de todas as mesas.")
                     else:
@@ -525,7 +532,7 @@ with tab_domino:
                         if len(vencedores_dom) == 1:
                             salvar_confrontos(turma_dom_sel, "Dominó", fase_dom_atual + 1, [{"jogadores": [vencedores_dom[0]], "vencedor": vencedores_dom[0]}])
                             salvar_podio(turma_dom_sel, "Dominó", {"1º": vencedores_dom[0], "2º": "Finalista", "3º": "Semifinalista"})
-                            st.success(f"🏆 Grande Campeão de Dominó: {vencedores_dom[0]}!")
+                            st.success(f"🏆 Grande Campeão de DOMINÓ: {vencedores_dom[0]}!")
                             st.rerun()
                         else:
                             novas_mesas = []
@@ -540,7 +547,7 @@ with tab_domino:
 # ABA 4: HISTÓRICO DE VENCEDORES (1º, 2º e 3º LUGAR)
 # ==========================================
 with tab_historico:
-    st.subheader("🏆 Histórico Geral de Vencedores")
+    st.subheader("🏆 HISTÓRICO GERAL DE VENCEDORES")
     historico_db = carregar_historico()
 
     if historico_db:
@@ -551,7 +558,7 @@ with tab_historico:
             
             st.markdown(f"""
                 <div class="dupla-card">
-                    <h4>🏅 {modalidade} - Turma: {turma}</h4>
+                    <h4>🏅 {modalidade.upper()} - Turma: {turma}</h4>
                     <p>🥇 <b>1º Lugar:</b> {podio.get('1º', 'A definir')}</p>
                     <p>🥈 <b>2º Lugar:</b> {podio.get('2º', 'A definir')}</p>
                     <p>🥉 <b>3º Lugar:</b> {podio.get('3º', 'A definir')}</p>
@@ -564,7 +571,7 @@ with tab_historico:
 # ABA 5: LISTA DE ALUNOS
 # ==========================================
 with tab_alunos:
-    st.subheader("📋 Lista Geral de Inscritos")
+    st.subheader("📋 LISTA GERAL DE INSCRITOS")
     alunos_db = carregar_alunos()
     
     if alunos_db:
