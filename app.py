@@ -1,8 +1,9 @@
 import random
 import time
+import io
 import streamlit as st
 
-# --- TRATAMENTO DE IMPORTAÇÃO ---
+# --- TRATAMENTO DE IMPORTAÇÕES ---
 try:
     from pymongo import MongoClient
     PYMONGO_INSTALADO = True
@@ -14,6 +15,15 @@ try:
     AUTOREFRESH_INSTALADO = True
 except ImportError:
     AUTOREFRESH_INSTALADO = False
+
+try:
+    from reportlab.lib.pagesizes import letter
+    from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle
+    from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+    from reportlab.lib import colors
+    REPORTLAB_INSTALADO = True
+except ImportError:
+    REPORTLAB_INSTALADO = False
 
 # --- CONFIGURAÇÃO DE PÁGINA (RESPONSIVO PARA MOBILE, TABLET E PC) ---
 st.set_page_config(
@@ -86,12 +96,17 @@ st.markdown("""
 # Verificação inicial de pacotes essenciais
 if not PYMONGO_INSTALADO:
     st.error("⚠ O pacote `pymongo` não está instalado no ambiente!")
-    st.info("Crie um arquivo chamado `requirements.txt` no seu repositório com:\n\n```text\nstreamlit\npymongo\ndnspython\nstreamlit-autorefresh\n```")
+    st.info("Crie um arquivo chamado `requirements.txt` no seu repositório com:\n\n```text\nstreamlit\npymongo\ndnspython\nstreamlit-autorefresh\nreportlab\n```")
     st.stop()
 
 if not AUTOREFRESH_INSTALADO:
     st.error("⚠ O pacote `streamlit-autorefresh` não está instalado no ambiente!")
     st.info("Adicione `streamlit-autorefresh` ao seu arquivo `requirements.txt`.")
+    st.stop()
+
+if not REPORTLAB_INSTALADO:
+    st.error("⚠ O pacote `reportlab` não está instalado no ambiente!")
+    st.info("Adicione `reportlab` ao seu arquivo `requirements.txt` para gerar arquivos PDF.")
     st.stop()
 
 # --- CONEXÃO COM O MONGODB ---
@@ -152,6 +167,59 @@ def carregar_historico():
 
 def resetar_historico():
     colecao_historico.delete_many({})
+
+# --- FUNÇÃO PARA GERAR PDF DO HISTÓRICO ---
+def gerar_pdf_historico(historico_dados, nome_torneio):
+    buffer = io.BytesIO()
+    doc = SimpleDocTemplate(buffer, pagesize=letter, rightMargin=30, leftMargin=30, topMargin=30, bottomMargin=30)
+    story = []
+    
+    styles = getSampleStyleSheet()
+    title_style = ParagraphStyle(
+        'TitleStyle',
+        parent=styles['Heading1'],
+        fontSize=20,
+        alignment=1,
+        spaceAfter=20,
+        textColor=colors.HexColor('#1E3A8A')
+    )
+    
+    story.append(Paragraph(f"<b>{nome_torneio.upper()}</b>", title_style))
+    story.append(Paragraph("<b>Relatório Oficial de Campeões & Pódio</b>", ParagraphStyle('Sub', parent=styles['Normal'], alignment=1, fontSize=12, spaceAfter=20)))
+    story.append(Spacer(1, 10))
+
+    tabela_dados = [["Modalidade", "Turma", "1º Lugar (Ouro)", "2º Lugar (Prata)", "3º Lugar (Bronze)"]]
+
+    for h in historico_dados:
+        mod = h.get("modalidade", "Jogo").upper()
+        turma = h.get("turma", "Geral")
+        podio = h.get("podio", {})
+        
+        p1 = podio.get("1º", "A definir")
+        p2 = podio.get("2º", "A definir")
+        p3 = podio.get("3º", "A definir")
+        
+        tabela_dados.append([mod, turma, p1, p2, p3])
+
+    t = Table(tabela_dados, colWidths=[90, 80, 125, 125, 130])
+    t.setStyle(TableStyle([
+        ('BACKGROUND', (0,0), (-1,0), colors.HexColor('#2563EB')),
+        ('TEXTCOLOR', (0,0), (-1,0), colors.whitesmoke),
+        ('ALIGN', (0,0), (-1,-1), 'CENTER'),
+        ('FONTNAME', (0,0), (-1,0), 'Helvetica-Bold'),
+        ('FONTSIZE', (0,0), (-1,0), 10),
+        ('BOTTOMPADDING', (0,0), (-1,0), 8),
+        ('TOPPADDING', (0,0), (-1,0), 8),
+        ('BACKGROUND', (0,1), (-1,-1), colors.HexColor('#F3F4F6')),
+        ('GRID', (0,0), (-1,-1), 0.5, colors.HexColor('#D1D5DB')),
+        ('VALIGN', (0,0), (-1,-1), 'MIDDLE'),
+        ('FONTSIZE', (0,1), (-1,-1), 9),
+    ]))
+    
+    story.append(t)
+    doc.build(story)
+    buffer.seek(0)
+    return buffer
 
 # --- ESTADO DO TEMPORIZADOR ---
 if "timer_running" not in st.session_state:
@@ -622,14 +690,27 @@ with tab_domino:
                                 st.rerun()
 
 # ==========================================
-# ABA 4: HISTÓRICO DE VENCEDORES (1º, 2º e 3º LUGAR)
+# ABA 4: HISTÓRICO DE VENCEDORES (1º, 2º e 3º LUGAR + GERADOR DE PDF)
 # ==========================================
 with tab_historico:
-    col_hist_title, col_hist_btn = st.columns([3, 1])
+    col_hist_title, col_hist_pdf, col_hist_btn = st.columns([2, 1, 1])
     
     with col_hist_title:
         st.subheader("🏆 HISTÓRICO GERAL DE VENCEDORES")
     
+    historico_db = carregar_historico()
+
+    with col_hist_pdf:
+        if historico_db:
+            pdf_bytes = gerar_pdf_historico(historico_db, nome_torneio)
+            st.download_button(
+                label="📄 Baixar PDF do Histórico",
+                data=pdf_bytes,
+                file_name="historico_campeoes.pdf",
+                mime="application/pdf",
+                use_container_width=True
+            )
+
     with col_hist_btn:
         if st.button("🗑️ Zerar Histórico", use_container_width=True):
             st.session_state["confirmar_zerar_historico"] = True
@@ -650,8 +731,6 @@ with tab_historico:
                 st.rerun()
 
     st.divider()
-
-    historico_db = carregar_historico()
 
     if historico_db:
         for item in historico_db:
