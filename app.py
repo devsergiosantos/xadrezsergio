@@ -444,68 +444,72 @@ with tab_dama:
 
         if confs_dama:
             st.markdown(f"#### Fase {fase_dama_atual} - DAMA ({turma_dama_sel})")
-            vencedores_dama = []
-            todos_ok = True
 
-            with st.form(key=f"form_dama_{fase_dama_atual}_{turma_dama_sel}"):
-                for idx, c in enumerate(confs_dama):
-                    st.markdown(f"""<div class="dupla-card"><b>Partida DAMA {idx + 1}</b></div>""", unsafe_allow_html=True)
-                    j1, j2 = c["j1"], c["j2"]
-                    if j2 == "BYE (Passa direto)":
-                        st.info(f"⚪ **{j1}** avança automaticamente.")
-                        vencedores_dama.append(j1)
-                    else:
-                        opcoes = ["Selecione...", j1, j2]
-                        index_padrao = opcoes.index(c["vencedor"]) if c.get("vencedor") in opcoes else 0
-                        escolha = st.radio(f"Vencedor da Partida {idx + 1} ({pts_dama} pts):", opcoes, index=index_padrao, key=f"pd_{idx}")
-                        if escolha != "Selecione...":
-                            vencedores_dama.append(escolha)
+            if len(confs_dama) == 1 and confs_dama[0].get("j2") is None:
+                campeao_dama = confs_dama[0]["j1"]
+                st.success(f"🏆 **CAMPEÃO DE DAMA DO {turma_dama_sel.upper()}: {campeao_dama}** 🏆")
+            else:
+                vencedores_dama = []
+                todos_ok = True
+
+                with st.form(key=f"form_dama_{fase_dama_atual}_{turma_dama_sel}"):
+                    for idx, c in enumerate(confs_dama):
+                        st.markdown(f"""<div class="dupla-card"><b>Partida DAMA {idx + 1}</b></div>""", unsafe_allow_html=True)
+                        j1, j2 = c["j1"], c["j2"]
+                        if j2 == "BYE (Passa direto)":
+                            st.info(f"⚪ **{j1}** avança automaticamente.")
+                            vencedores_dama.append(j1)
                         else:
-                            todos_ok = False
+                            opcoes = ["Selecione...", j1, j2]
+                            index_padrao = opcoes.index(c["vencedor"]) if c.get("vencedor") in opcoes else 0
+                            escolha = st.radio(f"Vencedor da Partida {idx + 1} ({pts_dama} pts):", opcoes, index=index_padrao, key=f"pd_{idx}")
+                            if escolha != "Selecione...":
+                                vencedores_dama.append(escolha)
+                            else:
+                                todos_ok = False
 
-                if st.form_submit_button("Avançar DAMA ➡️", use_container_width=True):
-                    if not todos_ok:
-                        st.error("Selecione todos os vencedores.")
-                    else:
-                        salvar_confrontos(turma_dama_sel, "Dama", fase_dama_atual, [{**c, "vencedor": vencedores_dama[i]} for i, c in enumerate(confs_dama)])
-                        if len(vencedores_dama) == 1:
-                            primeiro = vencedores_dama[0]
-                            
-                            # Identificar o 2º lugar (perdedor da partida final)
-                            partida_final = confs_dama[0]
-                            segundo = partida_final["j2"] if partida_final["j1"] == primeiro else partida_final["j1"]
-                            if segundo == "BYE (Passa direto)":
-                                segundo = "Sem vice-campeão"
-
-                            # Identificar o 3º lugar (perdedores da semifinal / fase anterior)
-                            terceiro = "A definir"
-                            if fase_dama_atual > 1:
-                                fase_anterior = carregar_confrontos(turma_dama_sel, "Dama", fase_dama_atual - 1)
-                                perdedores_semi = []
-                                for conf in fase_anterior:
-                                    venc = conf.get("vencedor")
-                                    j1_prev, j2_prev = conf.get("j1"), conf.get("j2")
-                                    if venc and j2_prev != "BYE (Passa direto)":
-                                        perdedor = j2_prev if venc == j1_prev else j1_prev
-                                        if perdedor not in [primeiro, segundo]:
-                                            perdedores_semi.append(perdedor)
-                                if perdedores_semi:
-                                    terceiro = ", ".join(perdedores_semi)
-
-                            salvar_confrontos(turma_dama_sel, "Dama", fase_dama_atual + 1, [{"j1": primeiro, "j2": None, "vencedor": primeiro}])
-                            salvar_podio(turma_dama_sel, "Dama", {"1º": primeiro, "2º": segundo, "3º": terceiro})
-                            st.success(f"🏆 Campeão de DAMA: {primeiro}!")
-                            st.rerun()
+                    if st.form_submit_button("Avançar DAMA ➡️", use_container_width=True):
+                        if not todos_ok:
+                            st.error("Selecione todos os vencedores.")
                         else:
-                            novos = []
-                            random.shuffle(vencedores_dama)
-                            for i in range(0, len(vencedores_dama), 2):
-                                if i + 1 < len(vencedores_dama):
-                                    novos.append({"j1": vencedores_dama[i], "j2": vencedores_dama[i+1], "vencedor": None})
-                                else:
-                                    novos.append({"j1": vencedores_dama[i], "j2": "BYE (Passa direto)", "vencedor": vencedores_dama[i]})
-                            salvar_confrontos(turma_dama_sel, "Dama", fase_dama_atual + 1, novos)
-                            st.rerun()
+                            salvar_confrontos(turma_dama_sel, "Dama", fase_dama_atual, [{**c, "vencedor": vencedores_dama[i]} for i, c in enumerate(confs_dama)])
+                            if len(vencedores_dama) == 1:
+                                primeiro = vencedores_dama[0]
+                                
+                                # Identificar o 2º lugar (perdedor da partida final)
+                                partida_final = confs_dama[0]
+                                segundo = partida_final["j2"] if partida_final["j1"] == primeiro else partida_final["j1"]
+                                if segundo == "BYE (Passa direto)":
+                                    segundo = "Sem vice-campeão"
+
+                                # Identificar o 3º lugar (perdedores da semifinal / fase anterior)
+                                terceiro = "A definir"
+                                if fase_dama_atual > 1:
+                                    fase_anterior = carregar_confrontos(turma_dama_sel, "Dama", fase_dama_atual - 1)
+                                    perdedores_semi = []
+                                    for conf in fase_anterior:
+                                        venc = conf.get("vencedor")
+                                        j1_prev, j2_prev = conf.get("j1"), conf.get("j2")
+                                        if venc and j2_prev != "BYE (Passa direto)":
+                                            perdedor = j2_prev if venc == j1_prev else j1_prev
+                                            if perdedor not in [primeiro, segundo]:
+                                                perdedores_semi.append(perdedor)
+                                    if perdedores_semi:
+                                        terceiro = ", ".join(perdedores_semi)
+
+                                salvar_confrontos(turma_dama_sel, "Dama", fase_dama_atual + 1, [{"j1": primeiro, "j2": None, "vencedor": primeiro}])
+                                salvar_podio(turma_dama_sel, "Dama", {"1º": primeiro, "2º": segundo, "3º": terceiro})
+                                st.rerun()
+                            else:
+                                novos = []
+                                random.shuffle(vencedores_dama)
+                                for i in range(0, len(vencedores_dama), 2):
+                                    if i + 1 < len(vencedores_dama):
+                                        novos.append({"j1": vencedores_dama[i], "j2": vencedores_dama[i+1], "vencedor": None})
+                                    else:
+                                        novos.append({"j1": vencedores_dama[i], "j2": "BYE (Passa direto)", "vencedor": vencedores_dama[i]})
+                                salvar_confrontos(turma_dama_sel, "Dama", fase_dama_atual + 1, novos)
+                                st.rerun()
 
 # ==========================================
 # ABA 3: DOMINÓ (2, 3 OU 4 ALUNOS POR PARTIDA)
@@ -558,59 +562,64 @@ with tab_domino:
 
         if confs_dom:
             st.markdown(f"#### Fase {fase_dom_atual} - DOMINÓ ({turma_dom_sel})")
-            vencedores_dom = []
-            todos_ok_dom = True
 
-            with st.form(key=f"form_dom_{fase_dom_atual}_{turma_dom_sel}"):
-                for idx, m in enumerate(confs_dom):
-                    st.markdown(f"""<div class="dupla-card"><b>Mesa {idx + 1} (DOMINÓ)</b> (Participantes: {', '.join(m['jogadores'])})</div>""", unsafe_allow_html=True)
-                    opcoes = ["Selecione o vencedor..."] + m["jogadores"]
-                    index_padrao = opcoes.index(m["vencedor"]) if m.get("vencedor") in opcoes else 0
-                    
-                    escolha = st.selectbox(f"Vencedor da Mesa {idx + 1} ({pts_dom} pts):", opcoes, index=index_padrao, key=f"md_{idx}")
-                    if escolha != "Selecione o vencedor...":
-                        vencedores_dom.append(escolha)
-                    else:
-                        todos_ok_dom = False
+            # Exibição do Campeão no topo caso o torneio tenha sido finalizado
+            if len(confs_dom) == 1 and len(confs_dom[0].get("jogadores", [])) == 1:
+                campeao_domino = confs_dom[0]["jogadores"][0]
+                st.success(f"🏆 **GRANDE CAMPEÃO DE DOMINÓ DO {turma_dom_sel.upper()}: {campeao_domino}** 🏆")
+            else:
+                vencedores_dom = []
+                todos_ok_dom = True
 
-                if st.form_submit_button("Avançar DOMINÓ ➡️", use_container_width=True):
-                    if not todos_ok_dom:
-                        st.error("Selecione o vencedor de todas as mesas.")
-                    else:
-                        salvar_confrontos(turma_dom_sel, "Dominó", fase_dom_atual, [{**m, "vencedor": vencedores_dom[i]} for i, m in enumerate(confs_dom)])
-                        if len(vencedores_dom) == 1:
-                            primeiro = vencedores_dom[0]
-                            mesa_final = confs_dom[0]["jogadores"]
-                            demais_finalistas = [p for p in mesa_final if p != primeiro]
-
-                            segundo = demais_finalistas[0] if len(demais_finalistas) > 0 else "Sem vice-campeão"
-                            terceiro = ", ".join(demais_finalistas[1:]) if len(demais_finalistas) > 1 else "A definir"
-
-                            # Se a mesa final tiver apenas 2 participantes, buscar o 3º lugar dos perdedores das semifinais
-                            if len(demais_finalistas) <= 1 and fase_dom_atual > 1:
-                                fase_anterior = carregar_confrontos(turma_dom_sel, "Dominó", fase_dom_atual - 1)
-                                perdedores_semi = []
-                                for m_prev in fase_anterior:
-                                    venc = m_prev.get("vencedor")
-                                    jogadores_prev = m_prev.get("jogadores", [])
-                                    for jg in jogadores_prev:
-                                        if jg != venc and jg not in [primeiro, segundo]:
-                                            perdedores_semi.append(jg)
-                                if perdedores_semi:
-                                    terceiro = ", ".join(perdedores_semi)
-
-                            salvar_confrontos(turma_dom_sel, "Dominó", fase_dom_atual + 1, [{"jogadores": [primeiro], "vencedor": primeiro}])
-                            salvar_podio(turma_dom_sel, "Dominó", {"1º": primeiro, "2º": segundo, "3º": terceiro})
-                            st.success(f"🏆 Grande Campeão de DOMINÓ: {primeiro}!")
-                            st.rerun()
+                with st.form(key=f"form_dom_{fase_dom_atual}_{turma_dom_sel}"):
+                    for idx, m in enumerate(confs_dom):
+                        st.markdown(f"""<div class="dupla-card"><b>Mesa {idx + 1} (DOMINÓ)</b> (Participantes: {', '.join(m['jogadores'])})</div>""", unsafe_allow_html=True)
+                        opcoes = ["Selecione o vencedor..."] + m["jogadores"]
+                        index_padrao = opcoes.index(m["vencedor"]) if m.get("vencedor") in opcoes else 0
+                        
+                        escolha = st.selectbox(f"Vencedor da Mesa {idx + 1} ({pts_dom} pts):", opcoes, index=index_padrao, key=f"md_{idx}")
+                        if escolha != "Selecione o vencedor...":
+                            vencedores_dom.append(escolha)
                         else:
-                            novas_mesas = []
-                            random.shuffle(vencedores_dom)
-                            for i in range(0, len(vencedores_dom), tamanho_mesa):
-                                grupo = vencedores_dom[i:i + tamanho_mesa]
-                                novas_mesas.append({"jogadores": grupo, "vencedor": None})
-                            salvar_confrontos(turma_dom_sel, "Dominó", fase_dom_atual + 1, novas_mesas)
-                            st.rerun()
+                            todos_ok_dom = False
+
+                    if st.form_submit_button("Avançar DOMINÓ ➡️", use_container_width=True):
+                        if not todos_ok_dom:
+                            st.error("Selecione o vencedor de todas as mesas.")
+                        else:
+                            salvar_confrontos(turma_dom_sel, "Dominó", fase_dom_atual, [{**m, "vencedor": vencedores_dom[i]} for i, m in enumerate(confs_dom)])
+                            if len(vencedores_dom) == 1:
+                                primeiro = vencedores_dom[0]
+                                mesa_final = confs_dom[0]["jogadores"]
+                                demais_finalistas = [p for p in mesa_final if p != primeiro]
+
+                                segundo = demais_finalistas[0] if len(demais_finalistas) > 0 else "Sem vice-campeão"
+                                terceiro = ", ".join(demais_finalistas[1:]) if len(demais_finalistas) > 1 else "A definir"
+
+                                # Se a mesa final tiver apenas 2 participantes, buscar o 3º lugar dos perdedores das semifinais
+                                if len(demais_finalistas) <= 1 and fase_dom_atual > 1:
+                                    fase_anterior = carregar_confrontos(turma_dom_sel, "Dominó", fase_dom_atual - 1)
+                                    perdedores_semi = []
+                                    for m_prev in fase_anterior:
+                                        venc = m_prev.get("vencedor")
+                                        jogadores_prev = m_prev.get("jogadores", [])
+                                        for jg in jogadores_prev:
+                                            if jg != venc and jg not in [primeiro, segundo]:
+                                                perdedores_semi.append(jg)
+                                    if perdedores_semi:
+                                        terceiro = ", ".join(perdedores_semi)
+
+                                salvar_confrontos(turma_dom_sel, "Dominó", fase_dom_atual + 1, [{"jogadores": [primeiro], "vencedor": primeiro}])
+                                salvar_podio(turma_dom_sel, "Dominó", {"1º": primeiro, "2º": segundo, "3º": terceiro})
+                                st.rerun()
+                            else:
+                                novas_mesas = []
+                                random.shuffle(vencedores_dom)
+                                for i in range(0, len(vencedores_dom), tamanho_mesa):
+                                    grupo = vencedores_dom[i:i + tamanho_mesa]
+                                    novas_mesas.append({"jogadores": grupo, "vencedor": None})
+                                salvar_confrontos(turma_dom_sel, "Dominó", fase_dom_atual + 1, novas_mesas)
+                                st.rerun()
 
 # ==========================================
 # ABA 4: HISTÓRICO DE VENCEDORES (1º, 2º e 3º LUGAR)
