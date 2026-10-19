@@ -156,9 +156,15 @@ def resetar_torneio_turma(turma, modalidade):
     colecao_confrontos.delete_many({"turma": turma, "modalidade": modalidade})
 
 def salvar_podio(turma, modalidade, podio_dict):
+    # Garante o salvamento exclusivo de 1º, 2º e 3º lugar
+    podio_limpo = {
+        "1º": podio_dict.get("1º", "A definir"),
+        "2º": podio_dict.get("2º", "A definir"),
+        "3º": podio_dict.get("3º", "A definir")
+    }
     colecao_historico.update_one(
         {"turma": turma, "modalidade": modalidade},
-        {"$set": {"podio": podio_dict}},
+        {"$set": {"turma": turma, "modalidade": modalidade, "podio": podio_limpo}},
         upsert=True
     )
 
