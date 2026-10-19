@@ -319,7 +319,6 @@ with tab_xadrez:
                 if len(confrontos_fase) == 1 and confrontos_fase[0]["j2"] is None:
                     campeao = confrontos_fase[0]['j1']
                     st.success(f"🏆 **CAMPEÃO DE XADREZ DO {turma_selecionada.upper()}: {campeao}** 🏆")
-                    salvar_podio(turma_selecionada, "Xadrez", {"1º": campeao, "2º": "Finalista", "3º": "Semifinalista"})
                 else:
                     vencedores = []
                     todos_selecionados = True
@@ -358,7 +357,31 @@ with tab_xadrez:
                                 ])
 
                                 if len(vencedores) == 1:
-                                    salvar_confrontos(turma_selecionada, "Xadrez", fase_atual + 1, [{"j1": vencedores[0], "j2": None, "vencedor": vencedores[0]}])
+                                    primeiro = vencedores[0]
+                                    
+                                    # Identificar o 2º lugar (perdedor da partida final)
+                                    partida_final = confrontos_fase[0]
+                                    segundo = partida_final["j2"] if partida_final["j1"] == primeiro else partida_final["j1"]
+                                    if segundo == "BYE (Passa direto)":
+                                        segundo = "Sem vice-campeão"
+
+                                    # Identificar o 3º lugar (perdedores da semifinal / fase anterior)
+                                    terceiro = "A definir"
+                                    if fase_atual > 1:
+                                        fase_anterior = carregar_confrontos(turma_selecionada, "Xadrez", fase_atual - 1)
+                                        perdedores_semi = []
+                                        for conf in fase_anterior:
+                                            venc = conf.get("vencedor")
+                                            j1_prev, j2_prev = conf.get("j1"), conf.get("j2")
+                                            if venc and j2_prev != "BYE (Passa direto)":
+                                                perdedor = j2_prev if venc == j1_prev else j1_prev
+                                                if perdedor not in [primeiro, segundo]:
+                                                    perdedores_semi.append(perdedor)
+                                        if perdedores_semi:
+                                            terceiro = ", ".join(perdedores_semi)
+
+                                    salvar_podio(turma_selecionada, "Xadrez", {"1º": primeiro, "2º": segundo, "3º": terceiro})
+                                    salvar_confrontos(turma_selecionada, "Xadrez", fase_atual + 1, [{"j1": primeiro, "j2": None, "vencedor": primeiro}])
                                     st.rerun()
                                 else:
                                     novos_confrontos = []
@@ -446,9 +469,32 @@ with tab_dama:
                     else:
                         salvar_confrontos(turma_dama_sel, "Dama", fase_dama_atual, [{**c, "vencedor": vencedores_dama[i]} for i, c in enumerate(confs_dama)])
                         if len(vencedores_dama) == 1:
-                            salvar_confrontos(turma_dama_sel, "Dama", fase_dama_atual + 1, [{"j1": vencedores_dama[0], "j2": None, "vencedor": vencedores_dama[0]}])
-                            salvar_podio(turma_dama_sel, "Dama", {"1º": vencedores_dama[0], "2º": "Finalista", "3º": "Semifinalista"})
-                            st.success(f"🏆 Campeão de DAMA: {vencedores_dama[0]}!")
+                            primeiro = vencedores_dama[0]
+                            
+                            # Identificar o 2º lugar (perdedor da partida final)
+                            partida_final = confs_dama[0]
+                            segundo = partida_final["j2"] if partida_final["j1"] == primeiro else partida_final["j1"]
+                            if segundo == "BYE (Passa direto)":
+                                segundo = "Sem vice-campeão"
+
+                            # Identificar o 3º lugar (perdedores da semifinal / fase anterior)
+                            terceiro = "A definir"
+                            if fase_dama_atual > 1:
+                                fase_anterior = carregar_confrontos(turma_dama_sel, "Dama", fase_dama_atual - 1)
+                                perdedores_semi = []
+                                for conf in fase_anterior:
+                                    venc = conf.get("vencedor")
+                                    j1_prev, j2_prev = conf.get("j1"), conf.get("j2")
+                                    if venc and j2_prev != "BYE (Passa direto)":
+                                        perdedor = j2_prev if venc == j1_prev else j1_prev
+                                        if perdedor not in [primeiro, segundo]:
+                                            perdedores_semi.append(perdedor)
+                                if perdedores_semi:
+                                    terceiro = ", ".join(perdedores_semi)
+
+                            salvar_confrontos(turma_dama_sel, "Dama", fase_dama_atual + 1, [{"j1": primeiro, "j2": None, "vencedor": primeiro}])
+                            salvar_podio(turma_dama_sel, "Dama", {"1º": primeiro, "2º": segundo, "3º": terceiro})
+                            st.success(f"🏆 Campeão de DAMA: {primeiro}!")
                             st.rerun()
                         else:
                             novos = []
@@ -533,9 +579,29 @@ with tab_domino:
                     else:
                         salvar_confrontos(turma_dom_sel, "Dominó", fase_dom_atual, [{**m, "vencedor": vencedores_dom[i]} for i, m in enumerate(confs_dom)])
                         if len(vencedores_dom) == 1:
-                            salvar_confrontos(turma_dom_sel, "Dominó", fase_dom_atual + 1, [{"jogadores": [vencedores_dom[0]], "vencedor": vencedores_dom[0]}])
-                            salvar_podio(turma_dom_sel, "Dominó", {"1º": vencedores_dom[0], "2º": "Finalista", "3º": "Semifinalista"})
-                            st.success(f"🏆 Grande Campeão de DOMINÓ: {vencedores_dom[0]}!")
+                            primeiro = vencedores_dom[0]
+                            mesa_final = confs_dom[0]["jogadores"]
+                            demais_finalistas = [p for p in mesa_final if p != primeiro]
+
+                            segundo = demais_finalistas[0] if len(demais_finalistas) > 0 else "Sem vice-campeão"
+                            terceiro = ", ".join(demais_finalistas[1:]) if len(demais_finalistas) > 1 else "A definir"
+
+                            # Se a mesa final tiver apenas 2 participantes, buscar o 3º lugar dos perdedores das semifinais
+                            if len(demais_finalistas) <= 1 and fase_dom_atual > 1:
+                                fase_anterior = carregar_confrontos(turma_dom_sel, "Dominó", fase_dom_atual - 1)
+                                perdedores_semi = []
+                                for m_prev in fase_anterior:
+                                    venc = m_prev.get("vencedor")
+                                    jogadores_prev = m_prev.get("jogadores", [])
+                                    for jg in jogadores_prev:
+                                        if jg != venc and jg not in [primeiro, segundo]:
+                                            perdedores_semi.append(jg)
+                                if perdedores_semi:
+                                    terceiro = ", ".join(perdedores_semi)
+
+                            salvar_confrontos(turma_dom_sel, "Dominó", fase_dom_atual + 1, [{"jogadores": [primeiro], "vencedor": primeiro}])
+                            salvar_podio(turma_dom_sel, "Dominó", {"1º": primeiro, "2º": segundo, "3º": terceiro})
+                            st.success(f"🏆 Grande Campeão de DOMINÓ: {primeiro}!")
                             st.rerun()
                         else:
                             novas_mesas = []
