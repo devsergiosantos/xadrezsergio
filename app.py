@@ -191,7 +191,7 @@ with st.sidebar:
     if st.button("➕ Cadastrar", use_container_width=True):
         if novo_nome.strip():
             cadastrar_aluno(novo_nome.strip(), nova_turma)
-            st.success(f"{novo_nome} cadastrado com sucesso!")
+            st.toast(f"✅ {novo_nome.strip()} cadastrado com sucesso!", icon="🎉")
             st.rerun()
         else:
             st.warning("Digite o nome do aluno.")
@@ -671,13 +671,16 @@ with tab_historico:
         st.info("Nenhum pódio registrado ainda. Conclua os torneios para preencher o histórico.")
 
 # ==========================================
-# ABA 5: LISTA DE ALUNOS
+# ABA 5: LISTA DE ALUNOS (ATUALIZAÇÃO EM TEMPO REAL)
 # ==========================================
 with tab_alunos:
     st.subheader("📋 LISTA GERAL DE INSCRITOS")
-    alunos_db = carregar_alunos()
     
-    if alunos_db:
-        st.dataframe(alunos_db, use_container_width=True, hide_index=True)
+    # Carrega a lista atualizada do banco de dados a cada exibição da aba
+    lista_alunos_atualizada = carregar_alunos()
+    
+    if lista_alunos_atualizada:
+        st.caption(f"Total de alunos inscritos: **{len(lista_alunos_atualizada)}**")
+        st.dataframe(lista_alunos_atualizada, use_container_width=True, hide_index=True)
     else:
         st.info("Nenhum aluno cadastrado ainda.")
