@@ -124,6 +124,7 @@ if MONGO_URI:
     try:
         db = get_database()
         colecao_alunos = db["alunos"]
+        colecao_turmas = db["turmas"]
         colecao_confrontos = db["confrontos"]
         colecao_historico = db["historico_podio"]
     except Exception as e:
@@ -135,6 +136,25 @@ if db is None:
     st.stop()
 
 # --- FUNÇÕES DO BANCO DE DADOS ---
+def carregar_turmas():
+    turmas_docs = list(colecao_turmas.find({}, {"_id": 0}))
+    if not turmas_docs:
+        # Turmas padrão iniciais caso o banco esteja vazio
+        padroes = ["1º Ano A", "1º Ano B", "2º Ano A", "3º Ano A", "4º Ano A", "5º Ano A", "6º Ano A", "7º Ano A", "8º Ano A", "9º Ano A"]
+        for t in padroes:
+            colecao_turmas.update_one({"nome": t}, {"$set": {"nome": t}}, upsert=True)
+        return padroes
+    return [t["nome"] for t in turmas_docs]
+
+def cadastrar_turma(nome_turma):
+    if not colecao_turmas.find_one({"nome": nome_turma}):
+        colecao_turmas.insert_one({"nome": nome_turma})
+        return True
+    return False
+
+def deletar_turma(nome_turma):
+    colecao_turmas.delete_one({"nome": nome_turma})
+
 def carregar_alunos():
     return list(colecao_alunos.find({}, {"_id": 0}))
 
@@ -156,7 +176,6 @@ def resetar_torneio_turma(turma, modalidade):
     colecao_confrontos.delete_many({"turma": turma, "modalidade": modalidade})
 
 def salvar_podio(turma, modalidade, podio_dict):
-    # Garante o salvamento exclusivo de 1º, 2º e 3º lugar
     podio_limpo = {
         "1º": podio_dict.get("1º", "A definir"),
         "2º": podio_dict.get("2º", "A definir"),
@@ -249,26 +268,46 @@ if st.session_state.timer_running:
 
     st_autorefresh(interval=1000, key="relogio_counter")
 
-# --- BARRA LATERAL (MENU DE CADASTRO) ---
+# --- BARRA LATERAL (MENU DE CADASTRO E GERENCIAMENTO) ---
 with st.sidebar:
     st.header("⚙️ Configurações & Cadastro")
     nome_torneio = st.text_input("Nome do Torneio:", "Torneio de Jogos Escolares")
     
     st.divider()
+    st.subheader("🏫 Gerenciar Turmas")
+    nova_turma_input = st.text_input("Nome da Turma (Ex: 1º Ano A):", key="cad_turma_nova")
+    if st.button("➕ Adicionar Turma", use_container_width=True):
+        if nova_turma_input.strip():
+            sucesso = cadastrar_turma(nova_turma_input.strip())
+            if sucesso:
+                st.toast(f"✅ Turma {nova_turma_input.strip()} cadastrada!", icon="🎉")
+                st.rerun()
+            else:
+                st.warning("Esta turma já está cadastrada.")
+        else:
+            st.warning("Digite o nome da turma.")
+
+    turmas_atuais = carregar_turmas()
+    if turmas_atuais:
+        turma_a_remover = st.selectbox("Remover Turma:", ["Selecione..."] + turmas_atuais, key="sel_rem_turma")
+        if st.button("🗑️ Excluir Turma", use_container_width=True):
+            if turma_a_remover != "Selecione...":
+                deletar_turma(turma_a_remover)
+                st.toast(f"🗑️ Turma {turma_a_remover} removida.", icon="⚠️")
+                st.rerun()
+
+    st.divider()
     st.subheader("📝 Cadastrar Aluno")
     novo_nome = st.text_input("Nome do Aluno:", key="cad_nome")
-    nova_turma = st.selectbox(
-        "Turma:",
-        ["1º Ano", "2º Ano", "3º Ano", "4º Ano", "5º Ano", "6º Ano", "7º Ano", "8º Ano", "9º Ano"],
-        key="cad_turma"
-    )
-    if st.button("➕ Cadastrar", use_container_width=True):
-        if novo_nome.strip():
-            cadastrar_aluno(novo_nome.strip(), nova_turma)
+    turma_aluno_sel = st.selectbox("Turma do Aluno:", turmas_atuais if turmas_atuais else ["Nenhuma turma"], key="cad_turma_aluno")
+    
+    if st.button("➕ Cadastrar Aluno", use_container_width=True):
+        if novo_nome.strip() and turmas_atuais:
+            cadastrar_aluno(novo_nome.strip(), turma_aluno_sel)
             st.toast(f"✅ {novo_nome.strip()} cadastrado com sucesso!", icon="🎉")
             st.rerun()
         else:
-            st.warning("Digite o nome do aluno.")
+            st.warning("Preencha o nome e cadastre ao menos uma turma.")
 
 # --- COMPONENTE DO RELÓGIO FIXO NA PRIMEIRA PÁGINA (CANTO ESQUERDO) ---
 def renderizar_relogio_lateral():
@@ -292,7 +331,6 @@ def renderizar_relogio_lateral():
             unsafe_allow_html=True
         )
 
-        # Botão vermelho pequeno exibido quando resta 1 minuto ou menos (e o tempo ainda não zerou)
         if 0 < st.session_state.seconds_remaining <= 60:
             st.button("⚠️ RESTA 1 MINUTO!", key="btn_alerta_um_minuto", use_container_width=True, type="primary")
 
@@ -321,7 +359,7 @@ def renderizar_relogio_lateral():
         if st.session_state.seconds_remaining == 0:
             st.error("🚨 **TEMPO ESGOTADO!**")
 
-# --- INTERFACE PRINCIPAL EM ABAS (NOMES DOS MENUS DESTACADOS) ---
+# --- INTERFACE PRINCIPAL EM ABAS ---
 st.title(f"♟️ {nome_torneio}")
 
 tab_xadrez, tab_dama, tab_domino, tab_historico, tab_alunos = st.tabs([
@@ -329,7 +367,7 @@ tab_xadrez, tab_dama, tab_domino, tab_historico, tab_alunos = st.tabs([
 ])
 
 # ==========================================
-# ABA 1: XADREZ (COM EMPARELHAMENTO E PONTUAÇÃO)
+# ABA 1: XADREZ
 # ==========================================
 with tab_xadrez:
     col_relogio_esq, col_conteudo_dir = st.columns([1, 3])
@@ -340,10 +378,10 @@ with tab_xadrez:
     with col_conteudo_dir:
         st.markdown("## ⚔️ **MODALIDADE: XADREZ**")
         alunos_db = carregar_alunos()
-        turmas_disponiveis = sorted(list(set(a["turma"] for a in alunos_db)))
+        turmas_disponiveis = carregar_turmas()
 
         if not turmas_disponiveis:
-            st.info("👋 Nenhum aluno cadastrado. Use o menu lateral (⚙️) para cadastrar os alunos.")
+            st.info("👋 Nenhuma turma cadastrada. Use o menu lateral (⚙️) para adicionar turmas e alunos.")
         else:
             turma_selecionada = st.selectbox("🎯 Selecione a Turma para Xadrez:", turmas_disponiveis, key="turma_xadrez")
             pontos_por_vitoria = st.radio("🏅 Pontuação por vitória:", [2, 10], horizontal=True, key="pts_xadrez")
@@ -433,13 +471,11 @@ with tab_xadrez:
                                 if len(vencedores) == 1:
                                     primeiro = vencedores[0]
                                     
-                                    # Identificar o 2º lugar (perdedor da partida final)
                                     partida_final = confrontos_fase[0]
                                     segundo = partida_final["j2"] if partida_final["j1"] == primeiro else partida_final["j1"]
                                     if segundo == "BYE (Passa direto)":
                                         segundo = "Sem vice-campeão"
 
-                                    # Identificar o 3º lugar (perdedores da semifinal / fase anterior)
                                     terceiro = "A definir"
                                     if fase_atual > 1:
                                         fase_anterior = carregar_confrontos(turma_selecionada, "Xadrez", fase_atual - 1)
@@ -470,15 +506,15 @@ with tab_xadrez:
                                     st.rerun()
 
 # ==========================================
-# ABA 2: DAMA (2 ALUNOS POR PARTIDA)
+# ABA 2: DAMA
 # ==========================================
 with tab_dama:
     st.markdown("## 👑 **MODALIDADE: DAMA (2 JOGADORES POR PARTIDA)**")
     alunos_db = carregar_alunos()
-    turmas_dama = sorted(list(set(a["turma"] for a in alunos_db)))
+    turmas_dama = carregar_turmas()
 
     if not turmas_dama:
-        st.info("👋 Cadastre alunos na barra lateral para iniciar.")
+        st.info("👋 Cadastre turmas e alunos na barra lateral para iniciar.")
     else:
         turma_dama_sel = st.selectbox("🎯 Selecione a Turma para DAMA:", turmas_dama, key="turma_dama")
         pts_dama = st.radio("🏅 Pontuação por vitória:", [2, 10], horizontal=True, key="pts_dama")
@@ -492,7 +528,7 @@ with tab_dama:
 
         if btn_sort_dama:
             if len(alunos_dama_filtrados) < 2:
-                st.error("São necessários pelo menos 2 alunos.")
+                st.error("São necessários pelo menos 2 alunos nesta turma.")
             else:
                 resetar_torneio_turma(turma_dama_sel, "Dama")
                 jogadores = alunos_dama_filtrados.copy()
@@ -550,13 +586,11 @@ with tab_dama:
                             if len(vencedores_dama) == 1:
                                 primeiro = vencedores_dama[0]
                                 
-                                # Identificar o 2º lugar (perdedor da partida final)
                                 partida_final = confs_dama[0]
                                 segundo = partida_final["j2"] if partida_final["j1"] == primeiro else partida_final["j1"]
                                 if segundo == "BYE (Passa direto)":
                                     segundo = "Sem vice-campeão"
 
-                                # Identificar o 3º lugar (perdedores da semifinal / fase anterior)
                                 terceiro = "A definir"
                                 if fase_dama_atual > 1:
                                     fase_anterior = carregar_confrontos(turma_dama_sel, "Dama", fase_dama_atual - 1)
@@ -586,15 +620,15 @@ with tab_dama:
                                 st.rerun()
 
 # ==========================================
-# ABA 3: DOMINÓ (2, 3 OU 4 ALUNOS POR PARTIDA)
+# ABA 3: DOMINÓ
 # ==========================================
 with tab_domino:
     st.markdown("## 🀄 **MODALIDADE: DOMINÓ (2, 3 OU 4 JOGADORES)**")
     alunos_db = carregar_alunos()
-    turmas_domino = sorted(list(set(a["turma"] for a in alunos_db)))
+    turmas_domino = carregar_turmas()
 
     if not turmas_domino:
-        st.info("👋 Cadastre alunos na barra lateral para iniciar.")
+        st.info("👋 Cadastre turmas e alunos na barra lateral para iniciar.")
     else:
         turma_dom_sel = st.selectbox("🎯 Selecione a Turma para DOMINÓ:", turmas_domino, key="turma_dom")
         tamanho_mesa = st.selectbox("👥 Alunos por Mesa/Partida:", [2, 3, 4], key="tam_mesa_dom")
@@ -637,7 +671,6 @@ with tab_domino:
         if confs_dom:
             st.markdown(f"#### Fase {fase_dom_atual} - DOMINÓ ({turma_dom_sel})")
 
-            # Exibição do Campeão no topo caso o torneio tenha sido finalizado
             if len(confs_dom) == 1 and len(confs_dom[0].get("jogadores", [])) == 1:
                 campeao_domino = confs_dom[0]["jogadores"][0]
                 st.success(f"🏆 **GRANDE CAMPEÃO DE DOMINÓ DO {turma_dom_sel.upper()}: {campeao_domino}** 🏆")
@@ -668,104 +701,78 @@ with tab_domino:
                                 demais_finalistas = [p for p in mesa_final if p != primeiro]
 
                                 segundo = demais_finalistas[0] if len(demais_finalistas) > 0 else "Sem vice-campeão"
-                                terceiro = ", ".join(demais_finalistas[1:]) if len(demais_finalistas) > 1 else "A definir"
+                                terceiro = demais_finalistas[1] if len(demais_finalistas) > 1 else "A definir"
 
-                                # Se a mesa final tiver apenas 2 participantes, buscar o 3º lugar dos perdedores das semifinais
-                                if len(demais_finalistas) <= 1 and fase_dom_atual > 1:
-                                    fase_anterior = carregar_confrontos(turma_dom_sel, "Dominó", fase_dom_atual - 1)
-                                    perdedores_semi = []
-                                    for m_prev in fase_anterior:
-                                        venc = m_prev.get("vencedor")
-                                        jogadores_prev = m_prev.get("jogadores", [])
-                                        for jg in jogadores_prev:
-                                            if jg != venc and jg not in [primeiro, segundo]:
-                                                perdedores_semi.append(jg)
-                                    if perdedores_semi:
-                                        terceiro = ", ".join(perdedores_semi)
-
-                                salvar_confrontos(turma_dom_sel, "Dominó", fase_dom_atual + 1, [{"jogadores": [primeiro], "vencedor": primeiro}])
                                 salvar_podio(turma_dom_sel, "Dominó", {"1º": primeiro, "2º": segundo, "3º": terceiro})
+                                salvar_confrontos(turma_dom_sel, "Dominó", fase_dom_atual + 1, [{"jogadores": [primeiro], "vencedor": primeiro}])
                                 st.rerun()
                             else:
-                                novas_mesas = []
+                                novos_mesas = []
                                 random.shuffle(vencedores_dom)
                                 for i in range(0, len(vencedores_dom), tamanho_mesa):
                                     grupo = vencedores_dom[i:i + tamanho_mesa]
-                                    novas_mesas.append({"jogadores": grupo, "vencedor": None})
-                                salvar_confrontos(turma_dom_sel, "Dominó", fase_dom_atual + 1, novas_mesas)
+                                    novos_mesas.append({"jogadores": grupo, "vencedor": None})
+                                salvar_confrontos(turma_dom_sel, "Dominó", fase_dom_atual + 1, novos_mesas)
                                 st.rerun()
 
 # ==========================================
-# ABA 4: HISTÓRICO DE VENCEDORES (1º, 2º e 3º LUGAR + GERADOR DE PDF)
+# ABA 4: HISTÓRICO E PÓDIO
 # ==========================================
 with tab_historico:
-    col_hist_title, col_hist_pdf, col_hist_btn = st.columns([2, 1, 1])
-    
-    with col_hist_title:
-        st.subheader("🏆 HISTÓRICO GERAL DE VENCEDORES")
-    
-    historico_db = carregar_historico()
+    st.markdown("## 🏆 **HISTÓRICO GERAL & PÓDIO**")
+    historico_dados = carregar_historico()
 
-    with col_hist_pdf:
-        if historico_db:
-            pdf_bytes = gerar_pdf_historico(historico_db, nome_torneio)
+    col_h1, col_h2 = st.columns(2)
+    with col_h1:
+        if historico_dados:
+            pdf_buffer = gerar_pdf_historico(historico_dados, nome_torneio)
             st.download_button(
-                label="📄 Baixar PDF do Histórico",
-                data=pdf_bytes,
-                file_name="historico_campeoes.pdf",
+                label="📥 Baixar Relatório em PDF",
+                data=pdf_buffer,
+                file_name="relatorio_campeoes_torneio.pdf",
                 mime="application/pdf",
                 use_container_width=True
             )
-
-    with col_hist_btn:
-        if st.button("🗑️ Zerar Histórico", use_container_width=True):
-            st.session_state["confirmar_zerar_historico"] = True
-
-    # Diálogo de confirmação para evitar exclusão acidental
-    if st.session_state.get("confirmar_zerar_historico", False):
-        st.warning("⚠️ Tem certeza de que deseja apagar **todo** o histórico de campeões?")
-        col_c1, col_c2 = st.columns(2)
-        with col_c1:
-            if st.button("✅ Sim, apagar tudo", type="primary", use_container_width=True):
+    with col_h2:
+        if historico_dados:
+            if st.button("🗑️ Limpar Histórico Completo", use_container_width=True):
                 resetar_historico()
-                st.session_state["confirmar_zerar_historico"] = False
-                st.toast("Histórico zerado com sucesso!", icon="🧹")
-                st.rerun()
-        with col_c2:
-            if st.button("❌ Cancelar", use_container_width=True):
-                st.session_state["confirmar_zerar_historico"] = False
+                st.toast("Histórico limpo com sucesso!", icon="🧹")
                 st.rerun()
 
     st.divider()
 
-    if historico_db:
-        for item in historico_db:
-            turma = item.get("turma", "Geral")
-            modalidade = item.get("modalidade", "Jogo")
-            podio = item.get("podio", {})
-            
+    if not historico_dados:
+        st.info("Nenhum pódio registrado ainda. Conclua os torneios nas turmas e modalidades para preencher o histórico.")
+    else:
+        for h in historico_dados:
+            mod = h.get("modalidade", "Modalidade")
+            turma = h.get("turma", "Turma")
+            podio = h.get("podio", {})
+
             st.markdown(f"""
                 <div class="dupla-card">
-                    <h4>🏅 {modalidade.upper()} - Turma: {turma}</h4>
-                    <p>🥇 <b>1º Lugar:</b> {podio.get('1º', 'A definir')}</p>
-                    <p>🥈 <b>2º Lugar:</b> {podio.get('2º', 'A definir')}</p>
-                    <p>🥉 <b>3º Lugar:</b> {podio.get('3º', 'A definir')}</p>
+                    <h3>🎮 {mod} — Turma: {turma}</h3>
+                    <p>🥇 <b>1º Lugar (Ouro):</b> {podio.get('1º', 'A definir')}</p>
+                    <p>🥈 <b>2º Lugar (Prata):</b> {podio.get('2º', 'A definir')}</p>
+                    <p>🥉 <b>3º Lugar (Bronze):</b> {podio.get('3º', 'A definir')}</p>
                 </div>
             """, unsafe_allow_html=True)
-    else:
-        st.info("Nenhum pódio registrado ainda. Conclua os torneios para preencher o histórico.")
 
 # ==========================================
-# ABA 5: LISTA DE ALUNOS (ATUALIZAÇÃO EM TEMPO REAL)
+# ABA 5: ALUNOS CADASTRADOS
 # ==========================================
 with tab_alunos:
-    st.subheader("📋 LISTA GERAL DE INSCRITOS")
+    st.markdown("## 👥 **ALUNOS CADASTRADOS**")
+    alunos_db = carregar_alunos()
     
-    # Carrega a lista atualizada do banco de dados a cada exibição da aba
-    lista_alunos_atualizada = carregar_alunos()
-    
-    if lista_alunos_atualizada:
-        st.caption(f"Total de alunos inscritos: **{len(lista_alunos_atualizada)}**")
-        st.dataframe(lista_alunos_atualizada, use_container_width=True, hide_index=True)
+    if not alunos_db:
+        st.info("Nenhum aluno cadastrado no momento.")
     else:
-        st.info("Nenhum aluno cadastrado ainda.")
+        turmas_cadastradas = sorted(list(set(a["turma"] for a in alunos_db)))
+        for t in turmas_cadastradas:
+            st.markdown(f"### Turma: {t}")
+            participantes = [a["nome"] for a in alunos_db if a["turma"] == t]
+            for idx, aluno in enumerate(participantes, 1):
+                st.write(f"{idx}. {aluno}")
+            st.divider()
