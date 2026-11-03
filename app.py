@@ -109,89 +109,167 @@ if not REPORTLAB_INSTALADO:
     st.info("Adicione `reportlab` ao seu arquivo `requirements.txt` para gerar arquivos PDF.")
     st.stop()
 
-# --- CONEXÃO COM O MONGODB ---
+# --- CONEXÃO COM O MONGODB E SUPORTE OFFLINE / CACHE LOCAL ---
 MONGO_URI = st.secrets.get("MONGO_URI", "")
 
 @st.cache_resource
 def get_database():
     if not MONGO_URI:
         return None
-    client = MongoClient(MONGO_URI)
-    return client["torneio_escolar"]
-
-db = None
-if MONGO_URI:
     try:
-        db = get_database()
-        colecao_alunos = db["alunos"]
-        colecao_turmas = db["turmas"]
-        colecao_confrontos = db["confrontos"]
-        colecao_historico = db["historico_podio"]
-    except Exception as e:
-        st.error(f"Erro ao conectar ao MongoDB: {e}")
+        client = MongoClient(MONGO_URI, serverSelectionTimeoutMS=3000)
+        client.admin.command('ping')
+        return client["torneio_escolar"]
+    except Exception:
+        return None
 
-if db is None:
-    st.warning("⚠️ **Conexão com o MongoDB não configurada.**")
-    st.info("Adicione a variável `MONGO_URI` em **Settings > Secrets** no Streamlit Cloud para salvar os dados na nuvem.")
-    st.stop()
+db = get_database()
 
-# --- FUNÇÕES DO BANCO DE DADOS ---
+# Inicialização do Cache Local de Segurança (Garante operação offline sem fechar a página)
+if "cache_offline_turmas" not in st.session_state:
+    st.session_state.cache_offline_turmas = ["1º Ano A", "1º Ano B", "2º Ano A", "3º Ano A", "4º Ano A", "5º Ano A", "6º Ano A", "7º Ano A", "8º Ano A", "9º Ano A"]
+if "cache_offline_alunos" not in st.session_state:
+    st.session_state.cache_offline_alunos = []
+if "cache_offline_confrontos" not in st.session_state:
+    st.session_state.cache_offline_confrontos = {}
+if "cache_offline_historico" not in st.session_state:
+    st.session_state.cache_offline_historico = []
+
+# --- FUNÇÕES DE BANCO DE DADOS HÍBRIDAS (ONLINE/OFFLINE) ---
 def carregar_turmas():
-    turmas_docs = list(colecao_turmas.find({}, {"_id": 0}))
-    if not turmas_docs:
-        # Turmas padrão iniciais caso o banco esteja vazio
-        padroes = ["1º Ano A", "1º Ano B", "2º Ano A", "3º Ano A", "4º Ano A", "5º Ano A", "6º Ano A", "7º Ano A", "8º Ano A", "9º Ano A"]
-        for t in padroes:
-            colecao_turmas.update_one({"nome": t}, {"$set": {"nome": t}}, upsert=True)
-        return padroes
-    return [t["nome"] for t in turmas_docs]
+    global db
+    if db is not None:
+        try:
+            turmas_docs = list(db["turmas"].find({}, {"_id": 0}))
+            if turmas_docs:
+                st.session_state.cache_offline_turmas = [t["nome"] for t in turmas_docs]
+            else:
+                for t in st.session_state.cache_offline_turmas:
+                    db["turmas"].update_one({"nome": t}, {"$set": {"nome": t}}, upsert=True)
+        except Exception:
+            pass # Usa o cache offline se a internet cair
+    return st.session_state.cache_offline_turmas
 
 def cadastrar_turma(nome_turma):
-    if not colecao_turmas.find_one({"nome": nome_turma}):
-        colecao_turmas.insert_one({"nome": nome_turma})
+    global db
+    if nome_turma not in st.session_state.cache_offline_turmas:
+        st.session_state.cache_offline_turmas.append(nome_turma)
+        if db is not None:
+            try:
+                db["turmas"].update_one({"nome": nome_turma}, {"$set": {"nome": nome_turma}}, upsert=True)
+            except Exception:
+                pass
         return True
     return False
 
 def deletar_turma(nome_turma):
-    colecao_turmas.delete_one({"nome": nome_turma})
+    global db
+    if nome_turma in st.session_state.cache_offline_turmas:
+        st.session_state.cache_offline_turmas.remove(nome_turma)
+    if db is not None:
+        try:
+            db["turmas"].delete_one({"nome": nome_turma})
+        except Exception:
+            pass
 
 def carregar_alunos():
-    return list(colecao_alunos.find({}, {"_id": 0}))
+    global db
+    if db is not None:
+        try:
+            alunos_docs = list(db["alunos"].find({}, {"_id": 0}))
+            if alunos_docs:
+                st.session_state.cache_offline_alunos = alunos_docs
+        except Exception:
+            pass
+    return st.session_state.cache_offline_alunos
 
 def cadastrar_aluno(nome, turma):
-    colecao_alunos.insert_one({"nome": nome, "turma": turma})
+    global db
+    novo = {"nome": nome, "turma": turma}
+    st.session_state.cache_offline_alunos.append(novo)
+    if db is not None:
+        try:
+            db["alunos"].insert_one(novo)
+        except Exception:
+            pass
 
 def carregar_confrontos(turma, modalidade, fase):
-    doc = colecao_confrontos.find_one({"turma": turma, "modalidade": modalidade, "fase": fase})
-    return doc["confrontos"] if doc else []
+    global db
+    chave = f"{turma}_{modalidade}_{fase}"
+    if db is not None:
+        try:
+            doc = db["confrontos"].find_one({"turma": turma, "modalidade": modalidade, "fase": fase})
+            if doc:
+                st.session_state.cache_offline_confrontos[chave] = doc["confrontos"]
+        except Exception:
+            pass
+    return st.session_state.cache_offline_confrontos.get(chave, [])
 
 def salvar_confrontos(turma, modalidade, fase, lista_confrontos):
-    colecao_confrontos.update_one(
-        {"turma": turma, "modalidade": modalidade, "fase": fase},
-        {"$set": {"turma": turma, "modalidade": modalidade, "fase": fase, "confrontos": lista_confrontos}},
-        upsert=True
-    )
+    global db
+    chave = f"{turma}_{modalidade}_{fase}"
+    st.session_state.cache_offline_confrontos[chave] = lista_confrontos
+    if db is not None:
+        try:
+            db["confrontos"].update_one(
+                {"turma": turma, "modalidade": modalidade, "fase": fase},
+                {"$set": {"turma": turma, "modalidade": modalidade, "fase": fase, "confrontos": lista_confrontos}},
+                upsert=True
+            )
+        except Exception:
+            pass
 
 def resetar_torneio_turma(turma, modalidade):
-    colecao_confrontos.delete_many({"turma": turma, "modalidade": modalidade})
+    global db
+    chaves_remover = [k for k in st.session_state.cache_offline_confrontos.keys() if k.startswith(f"{turma}_{modalidade}_")]
+    for k in chaves_remover:
+        del st.session_state.cache_offline_confrontos[k]
+    if db is not None:
+        try:
+            db["confrontos"].delete_many({"turma": turma, "modalidade": modalidade})
+        except Exception:
+            pass
 
 def salvar_podio(turma, modalidade, podio_dict):
+    global db
     podio_limpo = {
         "1º": podio_dict.get("1º", "A definir"),
         "2º": podio_dict.get("2º", "A definir"),
         "3º": podio_dict.get("3º", "A definir")
     }
-    colecao_historico.update_one(
-        {"turma": turma, "modalidade": modalidade},
-        {"$set": {"turma": turma, "modalidade": modalidade, "podio": podio_limpo}},
-        upsert=True
-    )
+    registro = {"turma": turma, "modalidade": modalidade, "podio": podio_limpo}
+    st.session_state.cache_offline_historico = [h for h in st.session_state.cache_offline_historico if not (h["turma"] == turma and h["modalidade"] == modalidade)]
+    st.session_state.cache_offline_historico.append(registro)
+    
+    if db is not None:
+        try:
+            db["historico_podio"].update_one(
+                {"turma": turma, "modalidade": modalidade},
+                {"$set": registro},
+                upsert=True
+            )
+        except Exception:
+            pass
 
 def carregar_historico():
-    return list(colecao_historico.find({}, {"_id": 0}))
+    global db
+    if db is not None:
+        try:
+            hist_docs = list(db["historico_podio"].find({}, {"_id": 0}))
+            if hist_docs:
+                st.session_state.cache_offline_historico = hist_docs
+        except Exception:
+            pass
+    return st.session_state.cache_offline_historico
 
 def resetar_historico():
-    colecao_historico.delete_many({})
+    global db
+    st.session_state.cache_offline_historico = []
+    if db is not None:
+        try:
+            db["historico_podio"].delete_many({})
+        except Exception:
+            pass
 
 # --- FUNÇÃO PARA GERAR PDF DO HISTÓRICO ---
 def gerar_pdf_historico(historico_dados, nome_torneio):
@@ -256,7 +334,6 @@ if "last_tick" not in st.session_state:
 if "timer_expanded" not in st.session_state:
     st.session_state.timer_expanded = False
 
-# Lógica de contagem em tempo real rodando em background com auto-refresh
 if st.session_state.timer_running:
     agora = time.time()
     passado = int(agora - st.session_state.last_tick)
@@ -359,6 +436,45 @@ def renderizar_relogio_lateral():
         if st.session_state.seconds_remaining == 0:
             st.error("🚨 **TEMPO ESGOTADO!**")
 
+# --- FUNÇÃO AUXILIAR PARA AVANÇO AUTOMÁTICO DE FASE ---
+def processar_avanco_fase(turma, modalidade, fase_atual, confrontos_fase, vencedores):
+    salvar_confrontos(turma, modalidade, fase_atual, [
+        {**c, "vencedor": vencedores[i]} for i, c in enumerate(confrontos_fase)
+    ])
+
+    if len(vencedores) == 1:
+        primeiro = vencedores[0]
+        partida_final = confrontos_fase[0]
+        segundo = partida_final["j2"] if partida_final["j1"] == primeiro else partida_final["j1"]
+        if segundo == "BYE (Passa direto)":
+            segundo = "Sem vice-campeão"
+
+        terceiro = "A definir"
+        if fase_atual > 1:
+            fase_anterior = carregar_confrontos(turma, modalidade, fase_atual - 1)
+            perdedores_semi = []
+            for conf in fase_anterior:
+                venc = conf.get("vencedor")
+                j1_prev, j2_prev = conf.get("j1"), conf.get("j2")
+                if venc and j2_prev != "BYE (Passa direto)":
+                    perdedor = j2_prev if venc == j1_prev else j1_prev
+                    if perdedor not in [primeiro, segundo]:
+                        perdedores_semi.append(perdedor)
+            if perdedores_semi:
+                terceiro = ", ".join(perdedores_semi)
+
+        salvar_podio(turma, modalidade, {"1º": primeiro, "2º": segundo, "3º": terceiro})
+        salvar_confrontos(turma, modalidade, fase_atual + 1, [{"j1": primeiro, "j2": None, "vencedor": primeiro}])
+    else:
+        novos_confrontos = []
+        random.shuffle(vencedores)
+        for i in range(0, len(vencedores), 2):
+            if i + 1 < len(vencedores):
+                novos_confrontos.append({"j1": vencedores[i], "j2": vencedores[i+1], "vencedor": None})
+            else:
+                novos_confrontos.append({"j1": vencedores[i], "j2": "BYE (Passa direto)", "vencedor": vencedores[i]})
+        salvar_confrontos(turma, modalidade, fase_atual + 1, novos_confrontos)
+
 # --- INTERFACE PRINCIPAL EM ABAS ---
 st.title(f"♟️ {nome_torneio}")
 
@@ -419,8 +535,8 @@ with tab_xadrez:
                 st.toast("Torneio de Xadrez zerado para esta turma.", icon="🧹")
                 st.rerun()
 
-            fases_registradas = list(colecao_confrontos.find({"turma": turma_selecionada, "modalidade": "Xadrez"}).sort("fase", -1))
-            fase_atual = fases_registradas[0]["fase"] if fases_registradas else 1
+            fases_registradas = sorted(list(set([int(k.split("_")[-1]) for k in st.session_state.cache_offline_confrontos.keys() if k.startswith(f"{turma_selecionada}_Xadrez_")])), reverse=True)
+            fase_atual = fases_registradas[0] if fases_registradas else 1
             confrontos_fase = carregar_confrontos(turma_selecionada, "Xadrez", fase_atual)
 
             st.divider()
@@ -435,75 +551,33 @@ with tab_xadrez:
                     vencedores = []
                     todos_selecionados = True
 
-                    with st.form(key=f"form_fase_xadrez_{fase_atual}_{turma_selecionada}"):
-                        for idx, c in enumerate(confrontos_fase):
-                            st.markdown(f"""<div class="dupla-card"><b>Partida {idx + 1} (XADREZ)</b></div>""", unsafe_allow_html=True)
-                            j1, j2 = c["j1"], c["j2"]
+                    for idx, c in enumerate(confrontos_fase):
+                        st.markdown(f"""<div class="dupla-card"><b>Partida {idx + 1} (XADREZ)</b></div>""", unsafe_allow_html=True)
+                        j1, j2 = c["j1"], c["j2"]
 
-                            if j2 == "BYE (Passa direto)":
-                                st.info(f"⚪ **{j1}** avança automaticamente.")
-                                vencedores.append(j1)
+                        if j2 == "BYE (Passa direto)":
+                            st.info(f"⚪ **{j1}** avança automaticamente.")
+                            vencedores.append(j1)
+                        else:
+                            opcoes = ["Selecione...", j1, j2]
+                            index_padrao = opcoes.index(c["vencedor"]) if c.get("vencedor") in opcoes else 0
+
+                            escolha = st.selectbox(
+                                f"Vencedor da Partida {idx + 1} (Valendo {pontos_por_vitoria} pts):",
+                                opcoes,
+                                index=index_padrao,
+                                key=f"px_{fase_atual}_{idx}"
+                            )
+                            if escolha != "Selecione...":
+                                vencedores.append(escolha)
                             else:
-                                opcoes = ["Selecione...", j1, j2]
-                                index_padrao = opcoes.index(c["vencedor"]) if c.get("vencedor") in opcoes else 0
+                                todos_selecionados = False
 
-                                escolha = st.radio(
-                                    f"Vencedor da Partida {idx + 1} (Valendo {pontos_por_vitoria} pts):",
-                                    opcoes,
-                                    index=index_padrao,
-                                    key=f"px_{fase_atual}_{idx}"
-                                )
-                                if escolha != "Selecione...":
-                                    vencedores.append(escolha)
-                                else:
-                                    todos_selecionados = False
-
-                        btn_avancar = st.form_submit_button("Avançar para Próxima Fase ➡️", use_container_width=True)
-
-                        if btn_avancar:
-                            if not todos_selecionados:
-                                st.error("Selecione o vencedor de todas as partidas antes de avançar.")
-                            else:
-                                salvar_confrontos(turma_selecionada, "Xadrez", fase_atual, [
-                                    {**c, "vencedor": vencedores[i]} for i, c in enumerate(confrontos_fase)
-                                ])
-
-                                if len(vencedores) == 1:
-                                    primeiro = vencedores[0]
-                                    
-                                    partida_final = confrontos_fase[0]
-                                    segundo = partida_final["j2"] if partida_final["j1"] == primeiro else partida_final["j1"]
-                                    if segundo == "BYE (Passa direto)":
-                                        segundo = "Sem vice-campeão"
-
-                                    terceiro = "A definir"
-                                    if fase_atual > 1:
-                                        fase_anterior = carregar_confrontos(turma_selecionada, "Xadrez", fase_atual - 1)
-                                        perdedores_semi = []
-                                        for conf in fase_anterior:
-                                            venc = conf.get("vencedor")
-                                            j1_prev, j2_prev = conf.get("j1"), conf.get("j2")
-                                            if venc and j2_prev != "BYE (Passa direto)":
-                                                perdedor = j2_prev if venc == j1_prev else j1_prev
-                                                if perdedor not in [primeiro, segundo]:
-                                                    perdedores_semi.append(perdedor)
-                                        if perdedores_semi:
-                                            terceiro = ", ".join(perdedores_semi)
-
-                                    salvar_podio(turma_selecionada, "Xadrez", {"1º": primeiro, "2º": segundo, "3º": terceiro})
-                                    salvar_confrontos(turma_selecionada, "Xadrez", fase_atual + 1, [{"j1": primeiro, "j2": None, "vencedor": primeiro}])
-                                    st.rerun()
-                                else:
-                                    novos_confrontos = []
-                                    random.shuffle(vencedores)
-                                    for i in range(0, len(vencedores), 2):
-                                        if i + 1 < len(vencedores):
-                                            novos_confrontos.append({"j1": vencedores[i], "j2": vencedores[i+1], "vencedor": None})
-                                        else:
-                                            novos_confrontos.append({"j1": vencedores[i], "j2": "BYE (Passa direto)", "vencedor": vencedores[i]})
-
-                                    salvar_confrontos(turma_selecionada, "Xadrez", fase_atual + 1, novos_confrontos)
-                                    st.rerun()
+                    # Avanço automático imediato assim que todos os vencedores da fase forem marcados
+                    if todos_selecionados and len(vencedores) == len(confrontos_fase):
+                        processar_avanco_fase(turma_selecionada, "Xadrez", fase_atual, confrontos_fase, vencedores)
+                        st.toast("⚡ Avanço automático para a próxima fase realizado!", icon="🚀")
+                        st.rerun()
 
 # ==========================================
 # ABA 2: DAMA
@@ -548,8 +622,8 @@ with tab_dama:
             st.toast("Torneio de DAMA reiniciado.", icon="🧹")
             st.rerun()
 
-        fases_dama = list(colecao_confrontos.find({"turma": turma_dama_sel, "modalidade": "Dama"}).sort("fase", -1))
-        fase_dama_atual = fases_dama[0]["fase"] if fases_dama else 1
+        fases_dama = sorted(list(set([int(k.split("_")[-1]) for k in st.session_state.cache_offline_confrontos.keys() if k.startswith(f"{turma_dama_sel}_Dama_")])), reverse=True)
+        fase_dama_atual = fases_dama[0] if fases_dama else 1
         confs_dama = carregar_confrontos(turma_dama_sel, "Dama", fase_dama_atual)
 
         if confs_dama:
@@ -562,62 +636,25 @@ with tab_dama:
                 vencedores_dama = []
                 todos_ok = True
 
-                with st.form(key=f"form_dama_{fase_dama_atual}_{turma_dama_sel}"):
-                    for idx, c in enumerate(confs_dama):
-                        st.markdown(f"""<div class="dupla-card"><b>Partida DAMA {idx + 1}</b></div>""", unsafe_allow_html=True)
-                        j1, j2 = c["j1"], c["j2"]
-                        if j2 == "BYE (Passa direto)":
-                            st.info(f"⚪ **{j1}** avança automaticamente.")
-                            vencedores_dama.append(j1)
+                for idx, c in enumerate(confs_dama):
+                    st.markdown(f"""<div class="dupla-card"><b>Partida DAMA {idx + 1}</b></div>""", unsafe_allow_html=True)
+                    j1, j2 = c["j1"], c["j2"]
+                    if j2 == "BYE (Passa direto)":
+                        st.info(f"⚪ **{j1}** avança automaticamente.")
+                        vencedores_dama.append(j1)
+                    else:
+                        opcoes = ["Selecione...", j1, j2]
+                        index_padrao = opcoes.index(c["vencedor"]) if c.get("vencedor") in opcoes else 0
+                        escolha = st.selectbox(f"Vencedor da Partida {idx + 1} ({pts_dama} pts):", opcoes, index=index_padrao, key=f"pd_{idx}")
+                        if escolha != "Selecione...":
+                            vencedores_dama.append(escolha)
                         else:
-                            opcoes = ["Selecione...", j1, j2]
-                            index_padrao = opcoes.index(c["vencedor"]) if c.get("vencedor") in opcoes else 0
-                            escolha = st.radio(f"Vencedor da Partida {idx + 1} ({pts_dama} pts):", opcoes, index=index_padrao, key=f"pd_{idx}")
-                            if escolha != "Selecione...":
-                                vencedores_dama.append(escolha)
-                            else:
-                                todos_ok = False
+                            todos_ok = False
 
-                    if st.form_submit_button("Avançar DAMA ➡️", use_container_width=True):
-                        if not todos_ok:
-                            st.error("Selecione todos os vencedores.")
-                        else:
-                            salvar_confrontos(turma_dama_sel, "Dama", fase_dama_atual, [{**c, "vencedor": vencedores_dama[i]} for i, c in enumerate(confs_dama)])
-                            if len(vencedores_dama) == 1:
-                                primeiro = vencedores_dama[0]
-                                
-                                partida_final = confs_dama[0]
-                                segundo = partida_final["j2"] if partida_final["j1"] == primeiro else partida_final["j1"]
-                                if segundo == "BYE (Passa direto)":
-                                    segundo = "Sem vice-campeão"
-
-                                terceiro = "A definir"
-                                if fase_dama_atual > 1:
-                                    fase_anterior = carregar_confrontos(turma_dama_sel, "Dama", fase_dama_atual - 1)
-                                    perdedores_semi = []
-                                    for conf in fase_anterior:
-                                        venc = conf.get("vencedor")
-                                        j1_prev, j2_prev = conf.get("j1"), conf.get("j2")
-                                        if venc and j2_prev != "BYE (Passa direto)":
-                                            perdedor = j2_prev if venc == j1_prev else j1_prev
-                                            if perdedor not in [primeiro, segundo]:
-                                                perdedores_semi.append(perdedor)
-                                    if perdedores_semi:
-                                        terceiro = ", ".join(perdedores_semi)
-
-                                salvar_confrontos(turma_dama_sel, "Dama", fase_dama_atual + 1, [{"j1": primeiro, "j2": None, "vencedor": primeiro}])
-                                salvar_podio(turma_dama_sel, "Dama", {"1º": primeiro, "2º": segundo, "3º": terceiro})
-                                st.rerun()
-                            else:
-                                novos = []
-                                random.shuffle(vencedores_dama)
-                                for i in range(0, len(vencedores_dama), 2):
-                                    if i + 1 < len(vencedores_dama):
-                                        novos.append({"j1": vencedores_dama[i], "j2": vencedores_dama[i+1], "vencedor": None})
-                                    else:
-                                        novos.append({"j1": vencedores_dama[i], "j2": "BYE (Passa direto)", "vencedor": vencedores_dama[i]})
-                                salvar_confrontos(turma_dama_sel, "Dama", fase_dama_atual + 1, novos)
-                                st.rerun()
+                if todos_ok and len(vencedores_dama) == len(confs_dama):
+                    processar_avanco_fase(turma_dama_sel, "Dama", fase_dama_atual, confs_dama, vencedores_dama)
+                    st.toast("⚡ Avanço automático para a próxima fase de Dama realizado!", icon="🚀")
+                    st.rerun()
 
 # ==========================================
 # ABA 3: DOMINÓ
@@ -664,8 +701,8 @@ with tab_domino:
             st.toast("Torneio de DOMINÓ reiniciado.", icon="🧹")
             st.rerun()
 
-        fases_dom = list(colecao_confrontos.find({"turma": turma_dom_sel, "modalidade": "Dominó"}).sort("fase", -1))
-        fase_dom_atual = fases_dom[0]["fase"] if fases_dom else 1
+        fases_dom = sorted(list(set([int(k.split("_")[-1]) for k in st.session_state.cache_offline_confrontos.keys() if k.startswith(f"{turma_dom_sel}_Dominó_")])), reverse=True)
+        fase_dom_atual = fases_dom[0] if fases_dom else 1
         confs_dom = carregar_confrontos(turma_dom_sel, "Dominó", fase_dom_atual)
 
         if confs_dom:
@@ -678,81 +715,58 @@ with tab_domino:
                 vencedores_dom = []
                 todos_ok_dom = True
 
-                with st.form(key=f"form_dom_{fase_dom_atual}_{turma_dom_sel}"):
-                    for idx, m in enumerate(confs_dom):
-                        st.markdown(f"""<div class="dupla-card"><b>Mesa {idx + 1} (DOMINÓ)</b> (Participantes: {', '.join(m['jogadores'])})</div>""", unsafe_allow_html=True)
-                        opcoes = ["Selecione o vencedor..."] + m["jogadores"]
-                        index_padrao = opcoes.index(m["vencedor"]) if m.get("vencedor") in opcoes else 0
-                        
-                        escolha = st.selectbox(f"Vencedor da Mesa {idx + 1} ({pts_dom} pts):", opcoes, index=index_padrao, key=f"md_{idx}")
-                        if escolha != "Selecione o vencedor...":
-                            vencedores_dom.append(escolha)
-                        else:
-                            todos_ok_dom = False
+                for idx, m in enumerate(confs_dom):
+                    st.markdown(f"""<div class="dupla-card"><b>Mesa {idx + 1} (DOMINÓ)</b> (Participantes: {', '.join(m['jogadores'])})</div>""", unsafe_allow_html=True)
+                    opcoes = ["Selecione o vencedor..."] + m["jogadores"]
+                    index_padrao = opcoes.index(m["vencedor"]) if m.get("vencedor") in opcoes else 0
+                    
+                    escolha = st.selectbox(f"Vencedor da Mesa {idx + 1} ({pts_dom} pts):", opcoes, index=index_padrao, key=f"pdom_{fase_dom_atual}_{idx}")
+                    if escolha != "Selecione o vencedor...":
+                        vencedores_dom.append(escolha)
+                    else:
+                        todos_ok_dom = False
 
-                    if st.form_submit_button("Avançar DOMINÓ ➡️", use_container_width=True):
-                        if not todos_ok_dom:
-                            st.error("Selecione o vencedor de todas as mesas.")
-                        else:
-                            salvar_confrontos(turma_dom_sel, "Dominó", fase_dom_atual, [{**m, "vencedor": vencedores_dom[i]} for i, m in enumerate(confs_dom)])
-                            if len(vencedores_dom) == 1:
-                                primeiro = vencedores_dom[0]
-                                mesa_final = confs_dom[0]["jogadores"]
-                                demais_finalistas = [p for p in mesa_final if p != primeiro]
-
-                                segundo = demais_finalistas[0] if len(demais_finalistas) > 0 else "Sem vice-campeão"
-                                terceiro = demais_finalistas[1] if len(demais_finalistas) > 1 else "A definir"
-
-                                salvar_podio(turma_dom_sel, "Dominó", {"1º": primeiro, "2º": segundo, "3º": terceiro})
-                                salvar_confrontos(turma_dom_sel, "Dominó", fase_dom_atual + 1, [{"jogadores": [primeiro], "vencedor": primeiro}])
-                                st.rerun()
-                            else:
-                                novos_mesas = []
-                                random.shuffle(vencedores_dom)
-                                for i in range(0, len(vencedores_dom), tamanho_mesa):
-                                    grupo = vencedores_dom[i:i + tamanho_mesa]
-                                    novos_mesas.append({"jogadores": grupo, "vencedor": None})
-                                salvar_confrontos(turma_dom_sel, "Dominó", fase_dom_atual + 1, novos_mesas)
-                                st.rerun()
+                if todos_ok_dom and len(vencedores_dom) == len(confs_dom):
+                    # Transforma mesas de dominó no formato padrão de confrontos de duplas para progressão unificada
+                    confs_convertidos = [{"j1": m["jogadores"][0], "j2": m["jogadores"][1] if len(m["jogadores"]) > 1 else "BYE (Passa direto)", "vencedor": m.get("vencedor")} for m in confs_dom]
+                    processar_avanco_fase(turma_dom_sel, "Dominó", fase_dom_atual, confs_convertidos, vencedores_dom)
+                    st.toast("⚡ Avanço automático de Dominó realizado!", icon="🚀")
+                    st.rerun()
 
 # ==========================================
-# ABA 4: HISTÓRICO E PÓDIO
+# ABA 4: HISTÓRICO
 # ==========================================
 with tab_historico:
-    st.markdown("## 🏆 **HISTÓRICO GERAL & PÓDIO**")
-    historico_dados = carregar_historico()
+    st.markdown("## 🏆 **HISTÓRICO DE CAMPEÕES & PÓDIO**")
+    historico = carregar_historico()
 
-    col_h1, col_h2 = st.columns(2)
-    with col_h1:
-        if historico_dados:
-            pdf_buffer = gerar_pdf_historico(historico_dados, nome_torneio)
+    if not historico:
+        st.info("Nenhum pódio registrado até o momento.")
+    else:
+        col_pdf1, col_pdf2 = st.columns([2, 2])
+        with col_pdf1:
+            pdf_buffer = gerar_pdf_historico(historico, nome_torneio)
             st.download_button(
                 label="📥 Baixar Relatório em PDF",
                 data=pdf_buffer,
-                file_name="relatorio_campeoes_torneio.pdf",
+                file_name="relatorio_campeoes.pdf",
                 mime="application/pdf",
                 use_container_width=True
             )
-    with col_h2:
-        if historico_dados:
-            if st.button("🗑️ Limpar Histórico Completo", use_container_width=True):
+        with col_pdf2:
+            if st.button("🗑️ Limpar Todo o Histórico", use_container_width=True):
                 resetar_historico()
-                st.toast("Histórico limpo com sucesso!", icon="🧹")
+                st.toast("Histórico apagado com sucesso.", icon="🧹")
                 st.rerun()
 
-    st.divider()
-
-    if not historico_dados:
-        st.info("Nenhum pódio registrado ainda. Conclua os torneios nas turmas e modalidades para preencher o histórico.")
-    else:
-        for h in historico_dados:
-            mod = h.get("modalidade", "Modalidade")
-            turma = h.get("turma", "Turma")
+        st.divider()
+        for h in historico:
+            mod = h.get("modalidade", "").upper()
+            turma = h.get("turma", "")
             podio = h.get("podio", {})
-
             st.markdown(f"""
                 <div class="dupla-card">
-                    <h3>🎮 {mod} — Turma: {turma}</h3>
+                    <h3>🏆 {mod} - {turma}</h3>
                     <p>🥇 <b>1º Lugar (Ouro):</b> {podio.get('1º', 'A definir')}</p>
                     <p>🥈 <b>2º Lugar (Prata):</b> {podio.get('2º', 'A definir')}</p>
                     <p>🥉 <b>3º Lugar (Bronze):</b> {podio.get('3º', 'A definir')}</p>
@@ -760,19 +774,23 @@ with tab_historico:
             """, unsafe_allow_html=True)
 
 # ==========================================
-# ABA 5: ALUNOS CADASTRADOS
+# ABA 5: ALUNOS
 # ==========================================
 with tab_alunos:
-    st.markdown("## 👥 **ALUNOS CADASTRADOS**")
-    alunos_db = carregar_alunos()
-    
-    if not alunos_db:
-        st.info("Nenhum aluno cadastrado no momento.")
+    st.markdown("## 👥 **ALUNOS CADASTRADOS POR TURMA**")
+    turmas = carregar_turmas()
+    alunos = carregar_alunos()
+
+    if not turmas:
+        st.info("Nenhuma turma cadastrada.")
     else:
-        turmas_cadastradas = sorted(list(set(a["turma"] for a in alunos_db)))
-        for t in turmas_cadastradas:
-            st.markdown(f"### Turma: {t}")
-            participantes = [a["nome"] for a in alunos_db if a["turma"] == t]
-            for idx, aluno in enumerate(participantes, 1):
-                st.write(f"{idx}. {aluno}")
-            st.divider()
+        tab_turmas = st.tabs(turmas)
+        for idx, t_nome in enumerate(turmas):
+            with tab_turmas[idx]:
+                st.markdown(f"#### Alunos da turma: **{t_nome}**")
+                alunos_turma = [a for a in alunos if a["turma"] == t_nome]
+                if not alunos_turma:
+                    st.info("Nenhum aluno cadastrado nesta turma.")
+                else:
+                    for a in alunos_turma:
+                        st.markdown(f"- 👤 {a['nome']}")
