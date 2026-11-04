@@ -293,7 +293,6 @@ def gerar_pdf_relatorio_completo(historico_dados, confrontos_dict, nome_torneio)
     story.append(Paragraph("<b>Relatório Oficial de Campeões & Chaveamentos</b>", ParagraphStyle('Sub', parent=styles['Normal'], alignment=1, fontSize=11, spaceAfter=15)))
     story.append(Spacer(1, 10))
 
-    # Tabela de Pódio
     story.append(Paragraph("<b>Resumo dos Pódios por Turma e Modalidade</b>", styles['Heading2']))
     tabela_dados = [["Modalidade", "Turma", "1º Lugar (Ouro)", "2º Lugar (Prata)", "3º Lugar (Bronze)"]]
     for h in historico_dados:
@@ -338,7 +337,7 @@ if st.session_state.timer_running:
             st.session_state.timer_running = False
     st_autorefresh(interval=1000, key="relogio_counter")
 
-# --- BARRA LATERAL (MENU, BACKUP E PROJEÇÃO) ---
+# --- BARRA LATERAL (MENU, BACKUP, PROJEÇÃO E CRÉDITO) ---
 with st.sidebar:
     st.header("⚙️ Configurações & Gestão")
     nome_torneio = st.text_input("Nome do Torneio:", "Torneio de Jogos Escolares")
@@ -400,6 +399,10 @@ with st.sidebar:
                 deletar_turma(turma_a_remover)
                 st.toast(f"🗑️ Turma removida.", icon="⚠️")
                 st.rerun()
+
+    # --- CRÉDITO NO RODAPÉ DA BARRA LATERAL ---
+    st.divider()
+    st.markdown("<p style='text-align: center; font-size: 13px; color: gray;'>Desenvolvido por <b>Sérgio Santos</b></p>", unsafe_allow_html=True)
 
 if modo_projetor:
     st.markdown("""
@@ -491,8 +494,13 @@ def processar_avanco_fase(turma, modalidade, fase_atual, confrontos_fase, venced
                 novos_confrontos.append({"j1": vencedores[i], "j2": "BYE (Passa direto)", "vencedor": vencedores[i]})
         salvar_confrontos(turma, modalidade, fase_atual + 1, novos_confrontos)
 
-# --- INTERFACE PRINCIPAL EM ABAS ---
+# --- INTERFACE PRINCIPAL ---
 st.title(f"♟️ {nome_torneio}")
+
+# --- DESCRIÇÃO DO APLICATIVO ---
+st.markdown("""
+> **Sobre o Aplicativo:** Sistema interativo e robusto desenvolvido para o gerenciamento completo de torneios de jogos de tabuleiro escolares (Xadrez, Dama e Dominó). Conta com sorteio automatizado de chaves, relógio de partida integrado, avanço dinâmico de fases, histórico de pódios com exportação em PDF, além de suporte total a operação offline e sincronização em nuvem.
+""")
 
 tab_xadrez, tab_dama, tab_domino, tab_historico, tab_alunos = st.tabs([
     "⚔️ XADREZ", "👑 DAMA", "🀄 DOMINÓ", "🏆 HISTÓRICO", "👥 ALUNOS"
@@ -761,7 +769,7 @@ with tab_historico:
             """, unsafe_allow_html=True)
 
 # ==========================================
-# ABA 5: ALUNOS (COM CHAVES ÚNICAS CORRIGIDAS)
+# ABA 5: ALUNOS
 # ==========================================
 with tab_alunos:
     st.markdown("## 👥 **GESTÃO DE ALUNOS**")
