@@ -777,22 +777,20 @@ with tab_historico:
             resp = h.get("responsavel", "Não informado")
             podio = h.get("podio", {})
             
-            st.markdown(f"""
-<div class="podio-container">
-    <h3 style="margin-top: 0px; margin-bottom: 5px;">🏆 {mod} — {turma}</h3>
-    <p style="font-size: 14px; opacity: 0.8; margin-bottom: 15px;">👨‍🏫 <b>Professor(a) Responsável:</b> {resp}</p>
-    
-    <div class="podio-ouro">
-        🥇 <b>1º Lugar (Ouro):</b> {podio.get('1º', 'A definir')}
-    </div>
-    <div class="podio-prata">
-        🥈 <b>2º Lugar (Prata):</b> {podio.get('2º', 'A definir')}
-    </div>
-    <div class="podio-bronze">
-        🥉 <b>3º Lugar (Bronze):</b> {podio.get('3º', 'A definir')}
-    </div>
+            st.markdown(f"""<div class="podio-container">
+<h3 style="margin-top: 0px; margin-bottom: 5px;">🏆 {mod} — {turma}</h3>
+<p style="font-size: 14px; opacity: 0.8; margin-bottom: 15px;">👨‍🏫 <b>Professor(a) Responsável:</b> {resp}</p>
+
+<div class="podio-ouro">
+🥇 <b>1º Lugar (Ouro):</b> {podio.get('1º', 'A definir')}
 </div>
-""", unsafe_allow_html=True)
+<div class="podio-prata">
+🥈 <b>2º Lugar (Prata):</b> {podio.get('2º', 'A definir')}
+</div>
+<div class="podio-bronze">
+🥉 <b>3º Lugar (Bronze):</b> {podio.get('3º', 'A definir')}
+</div>
+</div>""", unsafe_allow_html=True)
 
 # ==========================================
 # ABA 5: ALUNOS
