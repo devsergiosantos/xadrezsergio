@@ -34,7 +34,7 @@ st.set_page_config(
     initial_sidebar_state="collapsed"
 )
 
-# Estilo CSS customizado para destacar os menus, touchscreen e relógio
+# Estilo CSS customizado para destacar os menus, touchscreen, relógio e pódio olímpico
 st.markdown("""
     <style>
         button[data-baseweb="tab"] {
@@ -66,6 +66,38 @@ st.markdown("""
             margin-bottom: 10px;
             box-shadow: 0 2px 4px rgba(0,0,0,0.05);
         }
+        .podio-container {
+            background: linear-gradient(135deg, #f8f9fa, #e9ecef);
+            border: 2px solid #cbd5e1;
+            padding: 20px;
+            border-radius: 15px;
+            margin-bottom: 20px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.05);
+        }
+        .podio-ouro {
+            background-color: #fef08a;
+            border-left: 6px solid #eab308;
+            padding: 10px 15px;
+            border-radius: 8px;
+            margin: 8px 0;
+            font-weight: bold;
+        }
+        .podio-prata {
+            background-color: #f1f5f9;
+            border-left: 6px solid #94a3b8;
+            padding: 10px 15px;
+            border-radius: 8px;
+            margin: 8px 0;
+            font-weight: bold;
+        }
+        .podio-bronze {
+            background-color: #ffedd5;
+            border-left: 6px solid #f97316;
+            padding: 10px 15px;
+            border-radius: 8px;
+            margin: 8px 0;
+            font-weight: bold;
+        }
         @media (prefers-color-scheme: dark) {
             div[role="radiogroup"] label {
                 background-color: #262730;
@@ -73,6 +105,22 @@ st.markdown("""
             .dupla-card {
                 background-color: #1e1e1e;
                 border: 1px solid #333;
+            }
+            .podio-container {
+                background: linear-gradient(135deg, #1e1e1e, #111827);
+                border: 2px solid #374151;
+            }
+            .podio-ouro {
+                background-color: #422006;
+                color: #fde047;
+            }
+            .podio-prata {
+                background-color: #1e293b;
+                color: #cbd5e1;
+            }
+            .podio-bronze {
+                background-color: #431407;
+                color: #fdba74;
             }
         }
     </style>
@@ -767,7 +815,7 @@ with tab_domino:
                         st.rerun()
 
 # ==========================================
-# ABA 4: HISTÓRICO
+# ABA 4: HISTÓRICO COM PÓDIO OLÍMPICO ESTILIZADO
 # ==========================================
 with tab_historico:
     st.markdown("## 🏆 **HISTÓRICO DE CAMPEÕES & PÓDIO**")
@@ -797,13 +845,21 @@ with tab_historico:
             turma = h.get("turma", "")
             resp = h.get("responsavel", "Não informado")
             podio = h.get("podio", {})
+            
             st.markdown(f"""
-                <div class="dupla-card">
-                    <h3>🏆 {mod} - Turma: {turma}</h3>
-                    <p>👨‍🏫 <b>Professor(a):</b> {resp}</p>
-                    <p>🥇 <b>1º Lugar (Ouro):</b> {podio.get('1º', 'A definir')}</p>
-                    <p>🥈 <b>2º Lugar (Prata):</b> {podio.get('2º', 'A definir')}</p>
-                    <p>🥉 <b>3º Lugar (Bronze):</b> {podio.get('3º', 'A definir')}</p>
+                <div class="podio-container">
+                    <h3 style="margin-top: 0px; margin-bottom: 5px;">🏆 {mod} — {turma}</h3>
+                    <p style="font-size: 14px; opacity: 0.8; margin-bottom: 15px;">👨‍🏫 <b>Professor(a) Responsável:</b> {resp}</p>
+                    
+                    <div class="podio-ouro">
+                        🥇 <b>1º Lugar (Ouro):</b> {podio.get('1º', 'A definir')}
+                    </div>
+                    <div class="podio-prata">
+                        🥈 <b>2º Lugar (Prata):</b> {podio.get('2º', 'A definir')}
+                    </div>
+                    <div class="podio-bronze">
+                        🥉 <b>3º Lugar (Bronze):</b> {podio.get('3º', 'A definir')}
+                    </div>
                 </div>
             """, unsafe_allow_html=True)
 
