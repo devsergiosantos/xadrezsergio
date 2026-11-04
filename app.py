@@ -12,12 +12,6 @@ except ImportError:
     PYMONGO_INSTALADO = False
 
 try:
-    from streamlit_autorefresh import st_autorefresh
-    AUTOREFRESH_INSTALADO = True
-except ImportError:
-    AUTOREFRESH_INSTALADO = False
-
-try:
     from reportlab.lib.pagesizes import letter
     from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle
     from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
@@ -34,7 +28,7 @@ st.set_page_config(
     initial_sidebar_state="collapsed"
 )
 
-# Estilo CSS customizado para destacar os menus, touchscreen e relógio
+# Estilo CSS customizado para destacar os menus, touchscreen e pódio olímpico
 st.markdown("""
     <style>
         button[data-baseweb="tab"] {
@@ -66,6 +60,38 @@ st.markdown("""
             margin-bottom: 10px;
             box-shadow: 0 2px 4px rgba(0,0,0,0.05);
         }
+        .podio-container {
+            background: linear-gradient(135deg, #f8f9fa, #e9ecef);
+            border: 2px solid #cbd5e1;
+            padding: 20px;
+            border-radius: 15px;
+            margin-bottom: 20px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.05);
+        }
+        .podio-ouro {
+            background-color: #fef08a;
+            border-left: 6px solid #eab308;
+            padding: 10px 15px;
+            border-radius: 8px;
+            margin: 8px 0;
+            font-weight: bold;
+        }
+        .podio-prata {
+            background-color: #f1f5f9;
+            border-left: 6px solid #94a3b8;
+            padding: 10px 15px;
+            border-radius: 8px;
+            margin: 8px 0;
+            font-weight: bold;
+        }
+        .podio-bronze {
+            background-color: #ffedd5;
+            border-left: 6px solid #f97316;
+            padding: 10px 15px;
+            border-radius: 8px;
+            margin: 8px 0;
+            font-weight: bold;
+        }
         @media (prefers-color-scheme: dark) {
             div[role="radiogroup"] label {
                 background-color: #262730;
@@ -74,6 +100,22 @@ st.markdown("""
                 background-color: #1e1e1e;
                 border: 1px solid #333;
             }
+            .podio-container {
+                background: linear-gradient(135deg, #1e1e1e, #111827);
+                border: 2px solid #374151;
+            }
+            .podio-ouro {
+                background-color: #422006;
+                color: #fde047;
+            }
+            .podio-prata {
+                background-color: #1e293b;
+                color: #cbd5e1;
+            }
+            .podio-bronze {
+                background-color: #431407;
+                color: #fdba74;
+            }
         }
     </style>
 """, unsafe_allow_html=True)
@@ -81,10 +123,6 @@ st.markdown("""
 # Verificação inicial de pacotes essenciais
 if not PYMONGO_INSTALADO:
     st.error("⚠ O pacote `pymongo` não está instalado no ambiente!")
-    st.stop()
-
-if not AUTOREFRESH_INSTALADO:
-    st.error("⚠ O pacote `streamlit-autorefresh` não está instalado no ambiente!")
     st.stop()
 
 if not REPORTLAB_INSTALADO:
@@ -340,28 +378,18 @@ def gerar_pdf_relatorio_completo(historico_dados, nome_torneio):
     buffer.seek(0)
     return buffer
 
-# --- ESTADO DO TEMPORIZADOR ---
-if "timer_running" not in st.session_state:
-    st.session_state.timer_running = False
-if "seconds_remaining" not in st.session_state:
-    st.session_state.seconds_remaining = 300
-if "last_tick" not in st.session_state:
-    st.session_state.last_tick = time.time()
-if "timer_expanded" not in st.session_state:
-    st.session_state.timer_expanded = False
-
-if st.session_state.timer_running:
-    agora = time.time()
-    passado = int(agora - st.session_state.last_tick)
-    if passado > 0:
-        st.session_state.seconds_remaining = max(0, st.session_state.seconds_remaining - passado)
-        st.session_state.last_tick = agora
-        if st.session_state.seconds_remaining == 0:
-            st.session_state.timer_running = False
-    st_autorefresh(interval=1000, key="relogio_counter")
-
-# --- BARRA LATERAL (MENU, BACKUP, PROJEÇÃO E IDENTIFICAÇÃO DO PROFESSOR) ---
+# --- BARRA LATERAL (MENU, LOGO, BACKUP, PROJEÇÃO E IDENTIFICAÇÃO DO PROFESSOR) ---
 with st.sidebar:
+    # --- LOGO DO APLICATIVO ---
+    st.markdown("""
+        <div style="text-align: center; padding: 10px 0px 5px 0px;">
+            <span style="font-size: 42px;">🏆</span>
+            <h3 style="margin: 0px; color: #2563eb;">TORNEIO ESCOLAR</h3>
+            <p style="font-size: 11px; color: gray; margin-top: 2px;">Gestão Oficial de Jogos de Tabuleiro</p>
+        </div>
+    """, unsafe_allow_html=True)
+    
+    st.divider()
     st.header("⚙️ Configurações & Gestão")
     nome_torneio = st.text_input("Nome do Torneio:", "Torneio de Jogos Escolares")
     
@@ -435,49 +463,6 @@ if modo_projetor:
         </style>
     """, unsafe_allow_html=True)
 
-# --- RELÓGIO LATERAL ---
-def renderizar_relogio_lateral():
-    with st.container():
-        st.markdown("### ⏱️ Relógio de Partida")
-        if st.session_state.timer_expanded:
-            font_size = "60px"
-            container_bg = "#262730" if st.get_option("theme.base") == "dark" else "#f0f2f6"
-        else:
-            font_size = "28px"
-            container_bg = "transparent"
-
-        mins, secs = divmod(st.session_state.seconds_remaining, 60)
-        cor_texto = "#ff4b4b" if st.session_state.seconds_remaining == 0 else "inherit"
-
-        st.markdown(
-            f"""<div style="text-align: center; padding: 10px; background-color: {container_bg}; border-radius: 10px;">
-                <span style="font-size: {font_size}; font-weight: bold; color: {cor_texto};">{mins:02d}:{secs:02d}</span>
-            </div>""",
-            unsafe_allow_html=True
-        )
-
-        col_e1, col_e2 = st.columns(2)
-        with col_e1:
-            if not st.session_state.timer_running:
-                if st.button("▶️ Iniciar", key="btn_start_global", use_container_width=True):
-                    st.session_state.timer_running = True
-                    st.session_state.last_tick = time.time()
-                    st.rerun()
-            else:
-                if st.button("⏸️ Pausar", key="btn_pause_global", use_container_width=True):
-                    st.session_state.timer_running = False
-                    st.rerun()
-        with col_e2:
-            if st.button("🔍 Zoom", key="btn_zoom_global", use_container_width=True):
-                st.session_state.timer_expanded = not st.session_state.timer_expanded
-                st.rerun()
-
-        tempo_min = st.number_input("Ajustar minutos:", min_value=1, max_value=60, value=5, step=1, key="input_min_relogio")
-        if st.button("🔄 Definir Tempo", use_container_width=True):
-            st.session_state.seconds_remaining = tempo_min * 60
-            st.session_state.timer_running = False
-            st.rerun()
-
 # --- FUNÇÃO AUXILIAR DE AVANÇO DE FASE VIA BOTÃO ---
 def processar_avanco_fase(turma, modalidade, fase_atual, confrontos_fase, vencedores, responsavel):
     salvar_confrontos(turma, modalidade, fase_atual, [{**c, "vencedor": vencedores[i]} for i, c in enumerate(confrontos_fase)])
@@ -521,7 +506,7 @@ st.title(f"♟️ {nome_torneio}")
 
 # --- DESCRIÇÃO DO APLICATIVO ---
 st.markdown("""
-> **Sobre o Aplicativo:** Sistema interativo e robusto desenvolvido para o gerenciamento completo de torneios de jogos de tabuleiro escolares (Xadrez, Dama e Dominó). Conta com sorteio automatizado de chaves, relógio de partida integrado, avanço dinâmico de fases, histórico de pódios com exportação em PDF, além de suporte total a operação offline e sincronização em nuvem.
+> **Sobre o Aplicativo:** Sistema interativo e robusto desenvolvido para o gerenciamento completo de torneios de jogos de tabuleiro escolares (Xadrez, Dama e Dominó). Conta com sorteio automatizado de chaves, avanço dinâmico de fases, histórico de pódios com exportação em PDF, além de suporte total a operação offline e sincronização em nuvem.
 """)
 
 if professor_responsavel.strip():
@@ -535,86 +520,82 @@ tab_xadrez, tab_dama, tab_domino, tab_historico, tab_alunos = st.tabs([
 # ABA 1: XADREZ
 # ==========================================
 with tab_xadrez:
-    col_relogio_esq, col_conteudo_dir = st.columns([1, 3])
-    with col_relogio_esq:
-        renderizar_relogio_lateral()
-    with col_conteudo_dir:
-        st.markdown("## ⚔️ **MODALIDADE: XADREZ**")
-        alunos_db = carregar_alunos()
-        turmas_disponiveis = carregar_turmas()
+    st.markdown("## ⚔️ **MODALIDADE: XADREZ**")
+    alunos_db = carregar_alunos()
+    turmas_disponiveis = carregar_turmas()
 
-        if not turmas_disponiveis:
-            st.info("👋 Nenhuma turma cadastrada.")
-        else:
-            turma_selecionada = st.selectbox("🎯 Selecione a Turma:", turmas_disponiveis, key="turma_xadrez")
-            pontos_por_vitoria = st.radio("🏅 Pontuação por vitória:", [2, 10], horizontal=True, key="pts_xadrez")
-            
-            alunos_filtrados = [a["nome"] for a in alunos_db if a["turma"] == turma_selecionada]
-            st.caption(f"Total de alunos na turma **{turma_selecionada}**: {len(alunos_filtrados)}")
+    if not turmas_disponiveis:
+        st.info("👋 Nenhuma turma cadastrada.")
+    else:
+        turma_selecionada = st.selectbox("🎯 Selecione a Turma:", turmas_disponiveis, key="turma_xadrez")
+        pontos_por_vitoria = st.radio("🏅 Pontuação por vitória:", [2, 10], horizontal=True, key="pts_xadrez")
+        
+        alunos_filtrados = [a["nome"] for a in alunos_db if a["turma"] == turma_selecionada]
+        st.caption(f"Total de alunos na turma **{turma_selecionada}**: {len(alunos_filtrados)}")
 
-            col_sort, col_res = st.columns(2)
-            with col_sort:
-                btn_iniciar = st.button("🎲 Sortear Fase 1 (XADREZ)", type="primary", use_container_width=True, key="sort_x")
-            with col_res:
-                btn_limpar = st.button("🗑️ Reiniciar Torneio", use_container_width=True, key="limp_x")
+        col_sort, col_res = st.columns(2)
+        with col_sort:
+            btn_iniciar = st.button("🎲 Sortear Fase 1 (XADREZ)", type="primary", use_container_width=True, key="sort_x")
+        with col_res:
+            btn_limpar = st.button("🗑️ Reiniciar Torneio", use_container_width=True, key="limp_x")
 
-            if btn_iniciar:
-                if len(alunos_filtrados) < 2:
-                    st.error("É necessário ter pelo menos 2 alunos cadastrados.")
-                else:
-                    resetar_torneio_turma(turma_selecionada, "Xadrez")
-                    jogadores = alunos_filtrados.copy()
-                    random.shuffle(jogadores)
-                    confrontos = []
-                    for i in range(0, len(jogadores), 2):
-                        if i + 1 < len(jogadores):
-                            confrontos.append({"j1": jogadores[i], "j2": jogadores[i+1], "vencedor": None})
-                        else:
-                            confrontos.append({"j1": jogadores[i], "j2": "BYE (Passa direto)", "vencedor": jogadores[i]})
-                    salvar_confrontos(turma_selecionada, "Xadrez", 1, confrontos)
-                    st.rerun()
-
-            if btn_limpar:
+        if btn_iniciar:
+            if len(alunos_filtrados) < 2:
+                st.error("É necessário ter pelo menos 2 alunos cadastrados.")
+            else:
                 resetar_torneio_turma(turma_selecionada, "Xadrez")
-                st.toast("Torneio de Xadrez zerado.", icon="🧹")
+                jogadores = alunos_filtrados.copy()
+                random.shuffle(jogadores)
+                confrontos = []
+                for i in range(0, len(jogadores), 2):
+                    if i + 1 < len(jogadores):
+                        confrontos.append({"j1": jogadores[i], "j2": jogadores[i+1], "vencedor": None})
+                    else:
+                        confrontos.append({"j1": jogadores[i], "j2": "BYE (Passa direto)", "vencedor": jogadores[i]})
+                salvar_confrontos(turma_selecionada, "Xadrez", 1, confrontos)
                 st.rerun()
 
-            fases_registradas = sorted(list(set([int(k.split("_")[-1]) for k in st.session_state.cache_offline_confrontos.keys() if k.startswith(f"{turma_selecionada}_Xadrez_")])), reverse=True)
-            fase_atual = fases_registradas[0] if fases_registradas else 1
-            confrontos_fase = carregar_confrontos(turma_selecionada, "Xadrez", fase_atual)
+        if btn_limpar:
+            resetar_torneio_turma(turma_selecionada, "Xadrez")
+            st.toast("Torneio de Xadrez zerado.", icon="🧹")
+            st.rerun()
 
-            st.divider()
-            if confrontos_fase:
-                st.markdown(f"#### 🚩 Fase {fase_atual} - XADREZ ({turma_selecionada})")
-                if len(confrontos_fase) == 1 and confrontos_fase[0]["j2"] is None:
-                    campeao = confrontos_fase[0]['j1']
-                    st.success(f"🏆 **CAMPEÃO DE XADREZ DO {turma_selecionada.upper()}: {campeao}** 🏆")
-                else:
-                    vencedores = []
-                    todos_selecionados = True
-                    for idx, c in enumerate(confrontos_fase):
-                        st.markdown(f"""<div class="dupla-card"><b>Partida {idx + 1} (XADREZ)</b></div>""", unsafe_allow_html=True)
-                        j1, j2 = c["j1"], c["j2"]
-                        if j2 == "BYE (Passa direto)":
-                            st.info(f"⚪ **{j1}** avança automaticamente.")
-                            vencedores.append(j1)
-                        else:
-                            opcoes = ["Selecione...", j1, j2]
-                            index_padrao = opcoes.index(c["vencedor"]) if c.get("vencedor") in opcoes else 0
-                            escolha = st.selectbox(f"Vencedor da Partida {idx + 1}:", opcoes, index=index_padrao, key=f"px_{fase_atual}_{idx}")
-                            if escolha != "Selecione...":
-                                vencedores.append(escolha)
-                            else:
-                                todos_selecionados = False
+        fases_registradas = sorted(list(set([int(k.split("_")[-1]) for k in st.session_state.cache_offline_confrontos.keys() if k.startswith(f"{turma_selecionada}_Xadrez_")])), reverse=True)
+        fase_atual = fases_registradas[0] if fases_registradas else 1
+        confrontos_fase = carregar_confrontos(turma_selecionada, "Xadrez", fase_atual)
 
-                    st.write("")
-                    if st.button("➡️ Avançar para Próxima Fase (XADREZ)", type="primary", use_container_width=True, key="btn_avancar_xadrez"):
-                        if not todos_selecionados or len(vencedores) != len(confrontos_fase):
-                            st.error("⚠️ Selecione o vencedor de **todas** as partidas antes de avançar.")
+        st.divider()
+        if confrontos_fase:
+            st.markdown(f"#### 🚩 Fase {fase_atual} - XADREZ ({turma_selecionada})")
+            if len(confrontos_fase) == 1 and confrontos_fase[0]["j2"] is None:
+                campeao = confrontos_fase[0]['j1']
+                st.success(f"🏆 **CAMPEÃO DE XADREZ DO {turma_selecionada.upper()}: {campeao}** 🏆")
+            else:
+                vencedores = []
+                todos_selecionados = True
+                for idx, c in enumerate(confrontos_fase):
+                    st.markdown(f"""<div class="dupla-card"><b>Partida {idx + 1} (XADREZ)</b></div>""", unsafe_allow_html=True)
+                    j1, j2 = c["j1"], c["j2"]
+                    if j2 == "BYE (Passa direto)":
+                        st.info(f"⚪ **{j1}** avança automaticamente.")
+                        vencedores.append(j1)
+                    else:
+                        opcoes = ["Selecione...", j1, j2]
+                        index_padrao = opcoes.index(c["vencedor"]) if c.get("vencedor") in opcoes else 0
+                        escolha = st.selectbox(f"Vencedor da Partida {idx + 1}:", opcoes, index=index_padrao, key=f"px_{fase_atual}_{idx}")
+                        if escolha != "Selecione...":
+                            vencedores.append(escolha)
                         else:
-                            processar_avanco_fase(turma_selecionada, "Xadrez", fase_atual, confrontos_fase, vencedores, professor_responsavel)
-                            st.toast("⚡ Avanço para a próxima fase realizado!", icon="🚀")
-                            st.rerun()
+                            todos_selecionados = False
+
+                st.write("")
+                if st.button("➡️ Avançar para Próxima Fase (XADREZ)", type="primary", use_container_width=True, key="btn_avancar_xadrez"):
+                    if not todos_selecionados or len(vencedores) != len(confrontos_fase):
+                        st.error("⚠️ Selecione o vencedor de **todas** as partidas antes de avançar.")
+                    else:
+                        processar_avanco_fase(turma_selecionada, "Xadrez", fase_atual, confrontos_fase, vencedores, professor_responsavel)
+                        st.toast("⚡ Avanço para a próxima fase realizado!", icon="🚀")
+                        st.rerun()
 
 # ==========================================
 # ABA 2: DAMA
@@ -767,7 +748,7 @@ with tab_domino:
                         st.rerun()
 
 # ==========================================
-# ABA 4: HISTÓRICO
+# ABA 4: HISTÓRICO COM PÓDIO OLÍMPICO ESTILIZADO
 # ==========================================
 with tab_historico:
     st.markdown("## 🏆 **HISTÓRICO DE CAMPEÕES & PÓDIO**")
@@ -797,13 +778,21 @@ with tab_historico:
             turma = h.get("turma", "")
             resp = h.get("responsavel", "Não informado")
             podio = h.get("podio", {})
+            
             st.markdown(f"""
-                <div class="dupla-card">
-                    <h3>🏆 {mod} - Turma: {turma}</h3>
-                    <p>👨‍🏫 <b>Professor(a):</b> {resp}</p>
-                    <p>🥇 <b>1º Lugar (Ouro):</b> {podio.get('1º', 'A definir')}</p>
-                    <p>🥈 <b>2º Lugar (Prata):</b> {podio.get('2º', 'A definir')}</p>
-                    <p>🥉 <b>3º Lugar (Bronze):</b> {podio.get('3º', 'A definir')}</p>
+                <div class="podio-container">
+                    <h3 style="margin-top: 0px; margin-bottom: 5px;">🏆 {mod} — {turma}</h3>
+                    <p style="font-size: 14px; opacity: 0.8; margin-bottom: 15px;">👨‍🏫 <b>Professor(a) Responsável:</b> {resp}</p>
+                    
+                    <div class="podio-ouro">
+                        🥇 <b>1º Lugar (Ouro):</b> {podio.get('1º', 'A definir')}
+                    </div>
+                    <div class="podio-prata">
+                        🥈 <b>2º Lugar (Prata):</b> {podio.get('2º', 'A definir')}
+                    </div>
+                    <div class="podio-bronze">
+                        🥉 <b>3º Lugar (Bronze):</b> {podio.get('3º', 'A definir')}
+                    </div>
                 </div>
             """, unsafe_allow_html=True)
 
