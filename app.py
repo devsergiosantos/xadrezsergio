@@ -499,7 +499,7 @@ st.title(f"♟️ {nome_torneio}")
 
 # --- DESCRIÇÃO DO APLICATIVO ---
 st.markdown("""
-> **Sobre o Aplicativo:** Sistema interativo e robusto desenvolvido para o gerenciamento completo de torneios de jogos de tabuleiro escolares (Xadrez, Dama e Dominó). Conta com sorteio automatizado de chaves, relógio de partida integrado, avanço dinâmico de fases, histórico de pódios com exportação em PDF, além de suporte total a operação offline e sincronização em nuvem.
+> **BEM VINDO(A)** 
 """)
 
 tab_xadrez, tab_dama, tab_domino, tab_historico, tab_alunos = st.tabs([
