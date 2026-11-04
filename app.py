@@ -505,8 +505,7 @@ st.title(f"♟️ {nome_torneio}")
 
 # --- DESCRIÇÃO DO APLICATIVO ---
 st.markdown("""
-> **Sobre o Aplicativo:** Sistema interativo e robusto desenvolvido para o gerenciamento completo de torneios de jogos de tabuleiro escolares (Xadrez, Dama e Dominó). Conta com sorteio automatizado de chaves, avanço dinâmico de fases, histórico de pódios com exportação em PDF, além de suporte total a operação offline e sincronização em nuvem.
-""")
+> **** """)
 
 if professor_responsavel.strip():
     st.caption(f"👤 **Organizador(a) / Professor(a) atual:** {professor_responsavel}")
