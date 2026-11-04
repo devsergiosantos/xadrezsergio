@@ -657,7 +657,7 @@ with tab_dama:
                     st.rerun()
 
 # ==========================================
-# ABA 3: DOMINÓ
+# ABA 3: DOMINÓ (COMPATIBILIDADE TOTAL CORRIGIDA)
 # ==========================================
 with tab_domino:
     st.markdown("## 🀄 **MODALIDADE: DOMINÓ (2, 3 OU 4 JOGADORES)**")
@@ -708,16 +708,29 @@ with tab_domino:
         if confs_dom:
             st.markdown(f"#### Fase {fase_dom_atual} - DOMINÓ ({turma_dom_sel})")
 
-            if len(confs_dom) == 1 and len(confs_dom[0].get("jogadores", [])) == 1:
-                campeao_domino = confs_dom[0]["jogadores"][0]
+            # Tratamento seguro unificado para lista de participantes de cada mesa
+            lista_mesas_normalizada = []
+            for m in confs_dom:
+                if "jogadores" in m:
+                    participantes = m["jogadores"]
+                else:
+                    participantes = [m.get("j1")]
+                    if m.get("j2") and m.get("j2") != "BYE (Passa direto)":
+                        participantes.append(m.get("j2"))
+                lista_mesas_normalizada.append({"participantes": participantes, "vencedor": m.get("vencedor")})
+
+            if len(lista_mesas_normalizada) == 1 and len(lista_mesas_normalizada[0]["participantes"]) == 1:
+                campeao_domino = lista_mesas_normalizada[0]["participantes"][0]
                 st.success(f"🏆 **GRANDE CAMPEÃO DE DOMINÓ DO {turma_dom_sel.upper()}: {campeao_domino}** 🏆")
             else:
                 vencedores_dom = []
                 todos_ok_dom = True
 
-                for idx, m in enumerate(confs_dom):
-                    st.markdown(f"""<div class="dupla-card"><b>Mesa {idx + 1} (DOMINÓ)</b> (Participantes: {', '.join(m['jogadores'])})</div>""", unsafe_allow_html=True)
-                    opcoes = ["Selecione o vencedor..."] + m["jogadores"]
+                for idx, m in enumerate(lista_mesas_normalizada):
+                    part_str = ', '.join([str(p) for p in m['participantes'] if p])
+                    st.markdown(f"""<div class="dupla-card"><b>Mesa {idx + 1} (DOMINÓ)</b> (Participantes: {part_str})</div>""", unsafe_allow_html=True)
+                    
+                    opcoes = ["Selecione o vencedor..."] + m["participantes"]
                     index_padrao = opcoes.index(m["vencedor"]) if m.get("vencedor") in opcoes else 0
                     
                     escolha = st.selectbox(f"Vencedor da Mesa {idx + 1} ({pts_dom} pts):", opcoes, index=index_padrao, key=f"pdom_{fase_dom_atual}_{idx}")
@@ -726,9 +739,8 @@ with tab_domino:
                     else:
                         todos_ok_dom = False
 
-                if todos_ok_dom and len(vencedores_dom) == len(confs_dom):
-                    # Transforma mesas de dominó no formato padrão de confrontos de duplas para progressão unificada
-                    confs_convertidos = [{"j1": m["jogadores"][0], "j2": m["jogadores"][1] if len(m["jogadores"]) > 1 else "BYE (Passa direto)", "vencedor": m.get("vencedor")} for m in confs_dom]
+                if todos_ok_dom and len(vencedores_dom) == len(lista_mesas_normalizada):
+                    confs_convertidos = [{"j1": m["participantes"][0], "j2": m["participantes"][1] if len(m["participantes"]) > 1 else "BYE (Passa direto)", "vencedor": m.get("vencedor")} for m in lista_mesas_normalizada]
                     processar_avanco_fase(turma_dom_sel, "Dominó", fase_dom_atual, confs_convertidos, vencedores_dom)
                     st.toast("⚡ Avanço automático de Dominó realizado!", icon="🚀")
                     st.rerun()
