@@ -499,7 +499,7 @@ st.title(f"♟️ {nome_torneio}")
 
 # --- DESCRIÇÃO DO APLICATIVO ---
 st.markdown("""
-> **BEM VINDO(A)** 
+> **ÓTIMO TORNEIO!** 
 """)
 
 tab_xadrez, tab_dama, tab_domino, tab_historico, tab_alunos = st.tabs([
