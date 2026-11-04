@@ -237,14 +237,14 @@ def resetar_torneio_turma(turma, modalidade):
         except Exception:
             pass
 
-def salvar_podio(turma, modalidade, podio_dict):
+def salvar_podio(turma, modalidade, podio_dict, responsavel=""):
     global db
     podio_limpo = {
         "1º": podio_dict.get("1º", "A definir"),
         "2º": podio_dict.get("2º", "A definir"),
         "3º": podio_dict.get("3º", "A definir")
     }
-    registro = {"turma": turma, "modalidade": modalidade, "podio": podio_limpo}
+    registro = {"turma": turma, "modalidade": modalidade, "podio": podio_limpo, "responsavel": responsavel}
     st.session_state.cache_offline_historico = [h for h in st.session_state.cache_offline_historico if not (h["turma"] == turma and h["modalidade"] == modalidade)]
     st.session_state.cache_offline_historico.append(registro)
     
@@ -279,7 +279,7 @@ def resetar_historico():
             pass
 
 # --- FUNÇÃO PARA GERAR PDF COMPLETO (RELATÓRIO + PÓDIO) ---
-def gerar_pdf_relatorio_completo(historico_dados, confrontos_dict, nome_torneio):
+def gerar_pdf_relatorio_completo(historico_dados, nome_torneio):
     buffer = io.BytesIO()
     doc = SimpleDocTemplate(buffer, pagesize=letter, rightMargin=30, leftMargin=30, topMargin=30, bottomMargin=30)
     story = []
@@ -294,14 +294,15 @@ def gerar_pdf_relatorio_completo(historico_dados, confrontos_dict, nome_torneio)
     story.append(Spacer(1, 10))
 
     story.append(Paragraph("<b>Resumo dos Pódios por Turma e Modalidade</b>", styles['Heading2']))
-    tabela_dados = [["Modalidade", "Turma", "1º Lugar (Ouro)", "2º Lugar (Prata)", "3º Lugar (Bronze)"]]
+    tabela_dados = [["Modalidade", "Turma", "Responsável", "1º Lugar (Ouro)", "2º Lugar (Prata)", "3º Lugar (Bronze)"]]
     for h in historico_dados:
         mod = h.get("modalidade", "Jogo").upper()
         turma = h.get("turma", "Geral")
+        resp = h.get("responsavel", "Não informado")
         podio = h.get("podio", {})
-        tabela_dados.append([mod, turma, podio.get("1º", "A definir"), podio.get("2º", "A definir"), podio.get("3º", "A definir")])
+        tabela_dados.append([mod, turma, resp, podio.get("1º", "A definir"), podio.get("2º", "A definir"), podio.get("3º", "A definir")])
 
-    t = Table(tabela_dados, colWidths=[80, 80, 130, 130, 130])
+    t = Table(tabela_dados, colWidths=[70, 70, 90, 100, 100, 100])
     t.setStyle(TableStyle([
         ('BACKGROUND', (0,0), (-1,0), colors.HexColor('#2563EB')),
         ('TEXTCOLOR', (0,0), (-1,0), colors.whitesmoke),
@@ -337,10 +338,13 @@ if st.session_state.timer_running:
             st.session_state.timer_running = False
     st_autorefresh(interval=1000, key="relogio_counter")
 
-# --- BARRA LATERAL (MENU, BACKUP, PROJEÇÃO E CRÉDITO) ---
+# --- BARRA LATERAL (MENU, BACKUP, PROJEÇÃO E IDENTIFICAÇÃO DO PROFESSOR) ---
 with st.sidebar:
     st.header("⚙️ Configurações & Gestão")
     nome_torneio = st.text_input("Nome do Torneio:", "Torneio de Jogos Escolares")
+    
+    # --- IDENTIFICAÇÃO DO USUÁRIO / PROFESSOR ---
+    professor_responsavel = st.text_input("👨‍🏫 Professor Responsável:", "Professor(a)", help="Nome do professor que está operando o torneio neste momento.")
     
     modo_projetor = st.checkbox("📽️ Ativar Modo Tela Cheia / Projetor", value=False, help="Oculta esta barra lateral para maximizar o espaço na lousa/projetor.")
     
@@ -455,7 +459,7 @@ def renderizar_relogio_lateral():
             st.rerun()
 
 # --- FUNÇÃO AUXILIAR DE AVANÇO AUTOMÁTICO ---
-def processar_avanco_fase(turma, modalidade, fase_atual, confrontos_fase, vencedores):
+def processar_avanco_fase(turma, modalidade, fase_atual, confrontos_fase, vencedores, responsavel):
     salvar_confrontos(turma, modalidade, fase_atual, [
         {**c, "vencedor": vencedores[i]} for i, c in enumerate(confrontos_fase)
     ])
@@ -481,7 +485,7 @@ def processar_avanco_fase(turma, modalidade, fase_atual, confrontos_fase, venced
             if perdedores_semi:
                 terceiro = ", ".join(perdedores_semi)
 
-        salvar_podio(turma, modalidade, {"1º": primeiro, "2º": segundo, "3º": terceiro})
+        salvar_podio(turma, modalidade, {"1º": primeiro, "2º": segundo, "3º": terceiro}, responsavel)
         salvar_confrontos(turma, modalidade, fase_atual + 1, [{"j1": primeiro, "j2": None, "vencedor": primeiro}])
         st.balloons()
     else:
@@ -499,8 +503,12 @@ st.title(f"♟️ {nome_torneio}")
 
 # --- DESCRIÇÃO DO APLICATIVO ---
 st.markdown("""
-> **ÓTIMO TORNEIO!** 
+> **Sobre o Aplicativo:** Sistema interativo e robusto desenvolvido para o gerenciamento completo de torneios de jogos de tabuleiro escolares (Xadrez, Dama e Dominó). Conta com sorteio automatizado de chaves, relógio de partida integrado, avanço dinâmico de fases, histórico de pódios com exportação em PDF, além de suporte total a operação offline e sincronização em nuvem.
 """)
+
+# Exibição discreta do professor responsável na tela principal
+if professor_responsavel.strip():
+    st.caption(f"👤 **Organizador(a) / Professor(a) atual:** {professor_responsavel}")
 
 tab_xadrez, tab_dama, tab_domino, tab_historico, tab_alunos = st.tabs([
     "⚔️ XADREZ", "👑 DAMA", "🀄 DOMINÓ", "🏆 HISTÓRICO", "👥 ALUNOS"
@@ -583,7 +591,7 @@ with tab_xadrez:
                                 todos_selecionados = False
 
                     if todos_selecionados and len(vencedores) == len(confrontos_fase):
-                        processar_avanco_fase(turma_selecionada, "Xadrez", fase_atual, confrontos_fase, vencedores)
+                        processar_avanco_fase(turma_selecionada, "Xadrez", fase_atual, confrontos_fase, vencedores, professor_responsavel)
                         st.toast("⚡ Avanço automático realizado!", icon="🚀")
                         st.rerun()
 
@@ -655,7 +663,7 @@ with tab_dama:
                             todos_ok = False
 
                 if todos_ok and len(vencedores_dama) == len(confs_dama):
-                    processar_avanco_fase(turma_dama_sel, "Dama", fase_dama_atual, confs_dama, vencedores_dama)
+                    processar_avanco_fase(turma_dama_sel, "Dama", fase_dama_atual, confs_dama, vencedores_dama, professor_responsavel)
                     st.toast("⚡ Avanço automático de Dama realizado!", icon="🚀")
                     st.rerun()
 
@@ -725,7 +733,7 @@ with tab_domino:
 
                 if todos_ok_dom and len(vencedores_dom) == len(lista_mesas_normalizada):
                     confs_convertidos = [{"j1": m["participantes"][0], "j2": m["participantes"][1] if len(m["participantes"]) > 1 else "BYE (Passa direto)", "vencedor": m.get("vencedor")} for m in lista_mesas_normalizada]
-                    processar_avanco_fase(turma_dom_sel, "Dominó", fase_dom_atual, confs_convertidos, vencedores_dom)
+                    processar_avanco_fase(turma_dom_sel, "Dominó", fase_dom_atual, confs_convertidos, vencedores_dom, professor_responsavel)
                     st.toast("⚡ Avanço automático de Dominó realizado!", icon="🚀")
                     st.rerun()
 
@@ -741,7 +749,7 @@ with tab_historico:
     else:
         col_pdf1, col_pdf2 = st.columns([2, 2])
         with col_pdf1:
-            pdf_buffer = gerar_pdf_relatorio_completo(historico, st.session_state.cache_offline_confrontos, nome_torneio)
+            pdf_buffer = gerar_pdf_relatorio_completo(historico, nome_torneio)
             st.download_button(
                 label="📥 Baixar Relatório em PDF",
                 data=pdf_buffer,
@@ -758,10 +766,12 @@ with tab_historico:
         for h in historico:
             mod = h.get("modalidade", "").upper()
             turma = h.get("turma", "")
+            resp = h.get("responsavel", "Não informado")
             podio = h.get("podio", {})
             st.markdown(f"""
                 <div class="dupla-card">
-                    <h3>🏆 {mod} - {turma}</h3>
+                    <h3>🏆 {mod} - Turma: {turma}</h3>
+                    <p>👨‍🏫 <b>Professor(a):</b> {resp}</p>
                     <p>🥇 <b>1º Lugar (Ouro):</b> {podio.get('1º', 'A definir')}</p>
                     <p>🥈 <b>2º Lugar (Prata):</b> {podio.get('2º', 'A definir')}</p>
                     <p>🥉 <b>3º Lugar (Bronze):</b> {podio.get('3º', 'A definir')}</p>
