@@ -380,7 +380,6 @@ def gerar_pdf_relatorio_completo(historico_dados, nome_torneio):
 
 # --- BARRA LATERAL (MENU, LOGO, BACKUP, PROJEÇÃO E IDENTIFICAÇÃO DO PROFESSOR) ---
 with st.sidebar:
-    # --- LOGO DO APLICATIVO ---
     st.markdown("""
         <div style="text-align: center; padding: 10px 0px 5px 0px;">
             <span style="font-size: 42px;">🏆</span>
@@ -780,21 +779,21 @@ with tab_historico:
             podio = h.get("podio", {})
             
             st.markdown(f"""
-                <div class="podio-container">
-                    <h3 style="margin-top: 0px; margin-bottom: 5px;">🏆 {mod} — {turma}</h3>
-                    <p style="font-size: 14px; opacity: 0.8; margin-bottom: 15px;">👨‍🏫 <b>Professor(a) Responsável:</b> {resp}</p>
-                    
-                    <div class="podio-ouro">
-                        🥇 <b>1º Lugar (Ouro):</b> {podio.get('1º', 'A definir')}
-                    </div>
-                    <div class="podio-prata">
-                        🥈 <b>2º Lugar (Prata):</b> {podio.get('2º', 'A definir')}
-                    </div>
-                    <div class="podio-bronze">
-                        🥉 <b>3º Lugar (Bronze):</b> {podio.get('3º', 'A definir')}
-                    </div>
-                </div>
-            """, unsafe_allow_html=True)
+<div class="podio-container">
+    <h3 style="margin-top: 0px; margin-bottom: 5px;">🏆 {mod} — {turma}</h3>
+    <p style="font-size: 14px; opacity: 0.8; margin-bottom: 15px;">👨‍🏫 <b>Professor(a) Responsável:</b> {resp}</p>
+    
+    <div class="podio-ouro">
+        🥇 <b>1º Lugar (Ouro):</b> {podio.get('1º', 'A definir')}
+    </div>
+    <div class="podio-prata">
+        🥈 <b>2º Lugar (Prata):</b> {podio.get('2º', 'A definir')}
+    </div>
+    <div class="podio-bronze">
+        🥉 <b>3º Lugar (Bronze):</b> {podio.get('3º', 'A definir')}
+    </div>
+</div>
+""", unsafe_allow_html=True)
 
 # ==========================================
 # ABA 5: ALUNOS
