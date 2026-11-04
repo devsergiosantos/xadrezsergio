@@ -348,7 +348,6 @@ with st.sidebar:
     st.divider()
     st.subheader("💾 Backup & Restauração")
     
-    # Gerar Backup JSON
     dados_backup = {
         "turmas": carregar_turmas(),
         "alunos": carregar_alunos(),
@@ -363,7 +362,6 @@ with st.sidebar:
         use_container_width=True
     )
     
-    # Restaurar Backup JSON
     arquivo_subido = st.file_uploader("📤 Restaurar Backup", type=["json"])
     if arquivo_subido is not None:
         try:
@@ -403,7 +401,6 @@ with st.sidebar:
                 st.toast(f"🗑️ Turma removida.", icon="⚠️")
                 st.rerun()
 
-# Se o modo projetor estiver ativo, esconde a sidebar via CSS do Streamlit
 if modo_projetor:
     st.markdown("""
         <style>
@@ -483,7 +480,7 @@ def processar_avanco_fase(turma, modalidade, fase_atual, confrontos_fase, venced
 
         salvar_podio(turma, modalidade, {"1º": primeiro, "2º": segundo, "3º": terceiro})
         salvar_confrontos(turma, modalidade, fase_atual + 1, [{"j1": primeiro, "j2": None, "vencedor": primeiro}])
-        st.balloons() # Celebração com balões quando coroa o campeão!
+        st.balloons()
     else:
         novos_confrontos = []
         random.shuffle(vencedores)
@@ -764,7 +761,7 @@ with tab_historico:
             """, unsafe_allow_html=True)
 
 # ==========================================
-# ABA 5: ALUNOS (CADASTRO E GESTÃO COMPLETA)
+# ABA 5: ALUNOS (COM CHAVES ÚNICAS CORRIGIDAS)
 # ==========================================
 with tab_alunos:
     st.markdown("## 👥 **GESTÃO DE ALUNOS**")
@@ -794,23 +791,25 @@ with tab_alunos:
         st.divider()
         st.subheader("📋 Lista de Alunos por Turma (Com Opção de Exclusão/Alteração)")
         tab_turmas = st.tabs(turmas)
-        for idx, t_nome in enumerate(turmas):
-            with tab_turmas[idx]:
+        for idx_t, t_nome in enumerate(turmas):
+            with tab_turmas[idx_t]:
                 alunos_turma = [a for a in alunos if a["turma"] == t_nome]
                 if not alunos_turma:
                     st.info("Nenhum aluno cadastrado nesta turma.")
                 else:
-                    for a in alunos_turma:
+                    for idx_a, a in enumerate(alunos_turma):
                         col_a1, col_a2, col_a3 = st.columns([3, 1, 1])
                         with col_a1:
                             st.markdown(f"👤 **{a['nome']}**")
                         with col_a2:
-                            nova_turma_transf = st.selectbox("Mudar Turma", turmas, index=turmas.index(a['turma']), key=f"transf_{a['nome']}_{t_nome}")
+                            chave_selectbox = f"transf_{idx_t}_{idx_a}_{a['nome']}"
+                            nova_turma_transf = st.selectbox("Mudar Turma", turmas, index=turmas.index(a['turma']), key=chave_selectbox)
                             if nova_turma_transf != a['turma']:
                                 atualizar_aluno_turma(a['nome'], t_nome, a['nome'], nova_turma_transf)
                                 st.rerun()
                         with col_a3:
-                            if st.button("🗑️ Excluir", key=f"del_{a['nome']}_{t_nome}", use_container_width=True):
+                            chave_botao = f"del_{idx_t}_{idx_a}_{a['nome']}"
+                            if st.button("🗑️ Excluir", key=chave_botao, use_container_width=True):
                                 deletar_aluno(a['nome'], t_nome)
                                 st.toast(f"🗑️ Aluno {a['nome']} removido.", icon="⚠️")
                                 st.rerun()
