@@ -531,22 +531,15 @@ with tab_xadrez:
         alunos_da_turma = [a["nome"] for a in alunos_db if a["turma"] == turma_selecionada]
         st.markdown(f"### 📋 Selecione os alunos da turma **{turma_selecionada}** que vão jogar Xadrez:")
         
-        alunos_participantes_xadrez = []
         if not alunos_da_turma:
             st.info("Nenhum aluno cadastrado nesta turma na aba 'ALUNOS'.")
         else:
             with st.form("form_sel_xadrez"):
-                selecoes_x = {}
                 for aluno in alunos_da_turma:
-                    selecoes_x[aluno] = st.checkbox(aluno, value=True, key=f"chk_x_{aluno}")
-                btn_salvar_sel_x = st.form_submit_button("💾 Salvar Participantes para o Sorteio")
-                if btn_salvar_sel_x:
-                    st.success("Participantes atualizados para o sorteio!")
+                    st.checkbox(aluno, value=True, key=f"chk_x_{aluno}")
+                st.form_submit_button("💾 Salvar Participantes para o Sorteio")
             
-            alunos_participantes_xadrez = [al for al, sel in st.session_state.items() if al in alunos_da_turma and sel and str(al).startswith("chk_x_") == False] # simplificado abaixo com base no estado do checkbox atual
-            
-        # Filtro ativo real baseado nos checkboxes salvos/atuais
-        alunos_participantes_xadrez = [al for al in alunos_da_turma if st.session_state.get(f"chk_x_{aluno_nome := al}", True)]
+        alunos_participantes_xadrez = [al for al in alunos_da_turma if st.session_state.get(f"chk_x_{al}", True)]
         st.caption(f"Total de participantes selecionados para Xadrez: **{len(alunos_participantes_xadrez)}**")
 
         col_sort, col_res = st.columns(2)
@@ -832,7 +825,7 @@ with tab_historico:
         st.download_button(
             label="📄 Baixar Relatório em PDF",
             data=pdf_buffer,
-            file_name="relatorio_campeoes.json" if False else "relatorio_torneio.pdf",
+            file_name="relatorio_torneio.pdf",
             mime="application/pdf",
             use_container_width=True
         )
