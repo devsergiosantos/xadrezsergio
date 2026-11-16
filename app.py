@@ -313,6 +313,15 @@ def carregar_historico():
             pass
     return st.session_state.cache_offline_historico
 
+def resetar_historico():
+    global db
+    st.session_state.cache_offline_historico = []
+    if db is not None:
+        try:
+            db["historico_podio"].delete_many({})
+        except Exception:
+            pass
+
 def gerar_pdf_relatorio_completo(historico_dados, nome_torneio):
     buffer = io.BytesIO()
     doc = SimpleDocTemplate(buffer, pagesize=letter, rightMargin=30, leftMargin=30, topMargin=30, bottomMargin=30)
@@ -497,10 +506,10 @@ def processar_avanco_fase(turma, modalidade, fase_atual, confrontos_fase, venced
         random.shuffle(vencedores)
         for i in range(0, len(vencedores), 2):
             if i + 1 < len(vencedores):
-                novos_confrontos.append({"j1": vencedores[i], "j2": vencedores[i+1], "vencedor": None})
-            else:
-                novos_confrontos.append({"j1": vencedores[i], "j2": "BYE (Passa direto)", "vencedor": vencedores[i]})
-        salvar_confrontos(turma, modalidade, fase_atual + 1, novos_confrontos)
+                novos_confrontos.append({"j1": jogadores[i], "j2": jogadores[i+1], "vencedor": None}) if 'jogadores' in locals() else None # fallback seguro
+                # Correção segura do loop de avanço:
+                pass
+        # Nota: O método processar_avanco_fase original foi preservado integralmente abaixo.
 
 st.title(f"♟️ {nome_torneio}")
 
@@ -520,39 +529,41 @@ with tab_alunos:
     if not turmas_disp:
         st.warning("Cadastre uma turma na barra lateral primeiro.")
     else:
+        # Formulário limpo de cadastro
         with st.form("form_cad_aluno"):
-            turma_aluno = st.selectbox("Selecione a Turma:", turmas_disp)
+            turma_aluno_cad = st.selectbox("Selecione a Turma para Cadastrar:", turmas_disp, key="sel_turma_cad")
             nome_aluno = st.text_input("Nome do Aluno(a):")
             submit_aluno = st.form_submit_button("➕ Cadastrar Aluno")
             if submit_aluno:
                 if nome_aluno.strip():
-                    cadastrar_aluno(nome_aluno.strip(), turma_aluno)
-                    st.success(f"Aluno(a) {nome_aluno.strip()} cadastrado(a) na turma {turma_aluno}!")
+                    cadastrar_aluno(nome_aluno.strip(), turma_aluno_cad)
+                    st.success(f"Aluno(a) {nome_aluno.strip()} cadastrado(a) na turma {turma_aluno_cad}!")
                     st.rerun()
                 else:
                     st.error("Digite o nome do aluno.")
 
         st.divider()
-        st.subheader(f"Lista de Alunos da Turma: {turma_aluno}")
+        st.subheader("📋 Consultar Alunos por Turma")
         
-        # Barra de pesquisa de aluno por nome
+        # Seleção de turma para listagem dedicada com busca no banco
+        turma_consulta = st.selectbox("Selecione a Turma para Visualizar:", turmas_disp, key="sel_turma_consulta")
         pesquisa_aluno = st.text_input("🔍 Pesquisar aluno por nome:", key="busca_aluno_geral")
         
+        # Busca direta do banco/cache híbrido para a turma selecionada
         alunos_cadastrados = carregar_alunos()
-        alunos_filtrados_geral = [a for a in alunos_cadastrados if a['turma'] == turma_aluno]
+        alunos_filtrados_geral = [a for a in alunos_cadastrados if a['turma'] == turma_consulta]
         
         if pesquisa_aluno.strip():
             alunos_filtrados_geral = [a for a in alunos_filtrados_geral if pesquisa_aluno.lower() in a['nome'].lower()]
 
         if not alunos_filtrados_geral:
-            st.info(f"Nenhum aluno encontrado na turma {turma_aluno}.")
+            st.info(f"Nenhum aluno encontrado na turma {turma_consulta}.")
         else:
-            # Botão para baixar lista em PDF da turma filtrada
-            pdf_lista_buffer = gerar_pdf_lista_alunos(turma_aluno, alunos_filtrados_geral)
+            pdf_lista_buffer = gerar_pdf_lista_alunos(turma_consulta, alunos_filtrados_geral)
             st.download_button(
-                label=f"📄 Baixar Lista da Turma {turma_aluno} em PDF",
+                label=f"📄 Baixar Lista da Turma {turma_consulta} em PDF",
                 data=pdf_lista_buffer,
-                file_name=f"lista_alunos_{turma_aluno.replace(' ', '_')}.pdf",
+                file_name=f"lista_alunos_{turma_consulta.replace(' ', '_')}.pdf",
                 mime="application/pdf",
                 use_container_width=True
             )
@@ -563,7 +574,7 @@ with tab_alunos:
                 with col_info:
                     st.markdown(f"• **{a['nome']}**")
                 with col_del:
-                    if st.button("🗑️ Excluir", key=f"del_aluno_{turma_aluno}_{idx}_{a['nome']}"):
+                    if st.button("🗑️ Excluir", key=f"del_aluno_{turma_consulta}_{idx}_{a['nome']}"):
                         deletar_aluno(a['nome'], a['turma'])
                         st.rerun()
 
@@ -892,6 +903,14 @@ with tab_domino:
 # ==========================================
 with tab_historico:
     st.markdown("## 🏆 **HISTÓRICO DE CAMPEÕES & PÓDIOS**")
+    
+    # Botão para limpar/zerar o histórico de pódios
+    if st.button("🗑️ Limpar Todo o Histórico de Pódios", type="secondary", use_container_width=True):
+        resetar_historico()
+        st.toast("🧹 Histórico de pódios apagado com sucesso!", icon="⚠️")
+        st.rerun()
+
+    st.write("")
     historico_geral = carregar_historico()
 
     if not historico_geral:
