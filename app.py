@@ -475,7 +475,12 @@ if modo_projetor:
     """, unsafe_allow_html=True)
 
 def processar_avanco_fase(turma, modalidade, fase_atual, confrontos_fase, vencedores, responsavel):
-    salvar_confrontos(turma, modalidade, fase_atual, [{**c, "vencedor": vencedores[i]} for i, c in enumerate(confrontos_fase)])
+    salvar_confrontos(
+        turma,
+        modalidade,
+        fase_atual,
+        [{**c, "vencedor": vencedores[i]} for i, c in enumerate(confrontos_fase)]
+    )
 
     if len(vencedores) == 1:
         primeiro = vencedores[0]
@@ -503,13 +508,36 @@ def processar_avanco_fase(turma, modalidade, fase_atual, confrontos_fase, venced
         st.balloons()
     else:
         novos_confrontos = []
-        random.shuffle(vencedores)
-        for i in range(0, len(vencedores), 2):
-            if i + 1 < len(vencedores):
-                novos_confrontos.append({"j1": jogadores[i], "j2": jogadores[i+1], "vencedor": None}) if 'jogadores' in locals() else None # fallback seguro
-                # Correção segura do loop de avanço:
-                pass
-        # Nota: O método processar_avanco_fase original foi preservado integralmente abaixo.
+        lista_vencedores = vencedores.copy()
+        random.shuffle(lista_vencedores)
+        for i in range(0, len(lista_vencedores), 2):
+            if i + 1 < len(lista_vencedores):
+                novos_confrontos.append({"j1": lista_vencedores[i], "j2": lista_vencedores[i + 1], "vencedor": None})
+            else:
+                novos_confrontos.append({"j1": lista_vencedores[i], "j2": "BYE (Passa direto)", "vencedor": lista_vencedores[i]})
+        salvar_confrontos(turma, modalidade, fase_atual + 1, novos_confrontos)
+
+def exibir_fases_anteriores(turma, modalidade, fases_registradas, fase_atual):
+    fases_passadas = sorted([f for f in fases_registradas if f < fase_atual])
+    if not fases_passadas:
+        return
+
+    with st.expander(f"📜 Ver Histórico de Fases Anteriores ({len(fases_passadas)} concluída(s))", expanded=False):
+        for f in fases_passadas:
+            st.markdown(f"##### 🏁 Fase {f}")
+            confs_passadas = carregar_confrontos(turma, modalidade, f)
+            for idx, c in enumerate(confs_passadas):
+                vencedor = c.get("vencedor", "Não definido")
+                if modalidade == "Dominó":
+                    jogadores_str = ", ".join(c.get("jogadores", []))
+                    st.markdown(f"- **Mesa {idx + 1}:** {jogadores_str} → ✅ **Vencedor:** {vencedor}")
+                else:
+                    j1, j2 = c.get("j1"), c.get("j2")
+                    if j2 == "BYE (Passa direto)":
+                        st.markdown(f"- **Partida {idx + 1}:** {j1} *(BYE)* → ✅ **Avançou:** {vencedor}")
+                    else:
+                        st.markdown(f"- **Partida {idx + 1}:** {j1} 🆚 {j2} → ✅ **Vencedor:** {vencedor}")
+            st.divider()
 
 st.title(f"♟️ {nome_torneio}")
 
@@ -529,7 +557,6 @@ with tab_alunos:
     if not turmas_disp:
         st.warning("Cadastre uma turma na barra lateral primeiro.")
     else:
-        # Formulário limpo de cadastro
         with st.form("form_cad_aluno"):
             turma_aluno_cad = st.selectbox("Selecione a Turma para Cadastrar:", turmas_disp, key="sel_turma_cad")
             nome_aluno = st.text_input("Nome do Aluno(a):")
@@ -545,11 +572,9 @@ with tab_alunos:
         st.divider()
         st.subheader("📋 Consultar Alunos por Turma")
         
-        # Seleção de turma para listagem dedicada com busca no banco
         turma_consulta = st.selectbox("Selecione a Turma para Visualizar:", turmas_disp, key="sel_turma_consulta")
         pesquisa_aluno = st.text_input("🔍 Pesquisar aluno por nome:", key="busca_aluno_geral")
         
-        # Busca direta do banco/cache híbrido para a turma selecionada
         alunos_cadastrados = carregar_alunos()
         alunos_filtrados_geral = [a for a in alunos_cadastrados if a['turma'] == turma_consulta]
         
@@ -650,6 +675,8 @@ with tab_xadrez:
         confrontos_fase = carregar_confrontos(turma_selecionada, "Xadrez", fase_atual)
 
         st.divider()
+        exibir_fases_anteriores(turma_selecionada, "Xadrez", fases_registradas, fase_atual)
+
         if confrontos_fase:
             st.markdown(f"#### 🚩 Fase {fase_atual} - XADREZ ({turma_selecionada})")
             if len(confrontos_fase) == 1 and confrontos_fase[0]["j2"] is None:
@@ -756,6 +783,9 @@ with tab_dama:
         fase_dama_atual = fases_dama[0] if fases_dama else 1
         confs_dama = carregar_confrontos(turma_dama_sel, "Dama", fase_dama_atual)
 
+        st.divider()
+        exibir_fases_anteriores(turma_dama_sel, "Dama", fases_dama, fase_dama_atual)
+
         if confs_dama:
             st.markdown(f"#### Fase {fase_dama_atual} - DAMA ({turma_dama_sel})")
             if len(confs_dama) == 1 and confs_dama[0].get("j2") is None:
@@ -774,7 +804,7 @@ with tab_dama:
                     else:
                         opcoes = ["Selecione...", j1, j2]
                         index_padrao = opcoes.index(c["vencedor"]) if c.get("vencedor") in opcoes else 0
-                        escolha = st.selectbox(f"Vencedor da Partida {idx + 1}:", opcoes, index=index_padrao, key=f"pd_{idx}")
+                        escolha = st.selectbox(f"Vencedor da Partida {idx + 1}:", opcoes, index=index_padrao, key=f"pd_{fase_dama_atual}_{idx}")
                         if escolha != "Selecione...":
                             vencedores_dama.append(escolha)
                             c["vencedor"] = escolha
@@ -858,6 +888,9 @@ with tab_domino:
         fase_dom_atual = fases_dom[0] if fases_dom else 1
         confs_dom = carregar_confrontos(turma_dom_sel, "Dominó", fase_dom_atual)
 
+        st.divider()
+        exibir_fases_anteriores(turma_dom_sel, "Dominó", fases_dom, fase_dom_atual)
+
         if confs_dom:
             st.markdown(f"#### Fase {fase_dom_atual} - DOMINÓ ({turma_dom_sel})")
             if len(confs_dom) == 1 and len(confs_dom[0].get("jogadores", [])) == 1:
@@ -887,10 +920,17 @@ with tab_domino:
                     if not todos_ok_dom or len(vencedores_dom) != len(confs_dom):
                         st.error("⚠️ Selecione o vencedor de **todas** as mesas antes de avançar.")
                     else:
+                        salvar_confrontos(
+                            turma_dom_sel,
+                            "Dominó",
+                            fase_dom_atual,
+                            [{**m, "vencedor": vencedores_dom[i]} for i, m in enumerate(confs_dom)]
+                        )
                         if len(vencedores_dom) == 1:
                             salvar_podio(turma_dom_sel, "Dominó", {"1º": vencedores_dom[0], "2º": "A definir", "3º": "A definir"}, professor_responsavel)
                             salvar_confrontos(turma_dom_sel, "Dominó", fase_dom_atual + 1, [{"jogadores": [vencedores_dom[0]]}])
                             st.balloons()
+                            st.rerun()
                         else:
                             random.shuffle(vencedores_dom)
                             novas_mesas = [{"jogadores": vencedores_dom[i:i + tamanho_mesa], "vencedor": None} for i in range(0, len(vencedores_dom), tamanho_mesa)]
@@ -904,7 +944,6 @@ with tab_domino:
 with tab_historico:
     st.markdown("## 🏆 **HISTÓRICO DE CAMPEÕES & PÓDIOS**")
     
-    # Botão para limpar/zerar o histórico de pódios
     if st.button("🗑️ Limpar Todo o Histórico de Pódios", type="secondary", use_container_width=True):
         resetar_historico()
         st.toast("🧹 Histórico de pódios apagado com sucesso!", icon="⚠️")
