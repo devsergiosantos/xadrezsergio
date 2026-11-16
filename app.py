@@ -537,24 +537,22 @@ with tab_xadrez:
             col_b1, col_b2 = st.columns(2)
             with col_b1:
                 if st.button("☑️ Selecionar Todos", key="btn_sel_todos_x"):
-                    for aluno in alunos_da_turma:
-                        st.session_state[f"chk_xadrez_{turma_selecionada}_{aluno}"] = True
+                    for idx_a, aluno in enumerate(alunos_da_turma):
+                        st.session_state[f"chk_xadrez_{turma_selecionada}_{idx_a}_{aluno}"] = True
                     st.rerun()
             with col_b2:
                 if st.button("❌ Desmarcar Todos", key="btn_desm_todos_x"):
-                    for aluno in alunos_da_turma:
-                        st.session_state[f"chk_xadrez_{turma_selecionada}_{aluno}"] = False
+                    for idx_a, aluno in enumerate(alunos_da_turma):
+                        st.session_state[f"chk_xadrez_{turma_selecionada}_{idx_a}_{aluno}"] = False
                     st.rerun()
 
-            total_sel_x = sum(1 for aluno in alunos_da_turma if st.session_state.get(f"chk_xadrez_{turma_selecionada}_{aluno}", True))
+            total_sel_x = sum(1 for idx_a, aluno in enumerate(alunos_da_turma) if st.session_state.get(f"chk_xadrez_{turma_selecionada}_{idx_a}_{aluno}", True))
             st.info(f"📊 **{total_sel_x}** de **{len(alunos_da_turma)}** alunos selecionados para Xadrez.")
 
-            with st.form("form_sel_xadrez"):
-                for aluno in alunos_da_turma:
-                    st.checkbox(aluno, value=True, key=f"chk_xadrez_{turma_selecionada}_{aluno}")
-                st.form_submit_button("💾 Salvar Participantes para o Sorteio")
+            for idx_a, aluno in enumerate(alunos_da_turma):
+                st.checkbox(aluno, value=True, key=f"chk_xadrez_{turma_selecionada}_{idx_a}_{aluno}")
             
-        alunos_participantes_xadrez = [al for al in alunos_da_turma if st.session_state.get(f"chk_xadrez_{turma_selecionada}_{al}", True)]
+        alunos_participantes_xadrez = [al for idx_a, al in enumerate(alunos_da_turma) if st.session_state.get(f"chk_xadrez_{turma_selecionada}_{idx_a}_{al}", True)]
 
         col_sort, col_res = st.columns(2)
         with col_sort:
@@ -647,24 +645,22 @@ with tab_dama:
             col_b1, col_b2 = st.columns(2)
             with col_b1:
                 if st.button("☑️ Selecionar Todos", key="btn_sel_todos_d"):
-                    for aluno in alunos_da_turma_dama:
-                        st.session_state[f"chk_dama_{turma_dama_sel}_{aluno}"] = True
+                    for idx_a, aluno in enumerate(alunos_da_turma_dama):
+                        st.session_state[f"chk_dama_{turma_dama_sel}_{idx_a}_{aluno}"] = True
                     st.rerun()
             with col_b2:
                 if st.button("❌ Desmarcar Todos", key="btn_desm_todos_d"):
-                    for aluno in alunos_da_turma_dama:
-                        st.session_state[f"chk_dama_{turma_dama_sel}_{aluno}"] = False
+                    for idx_a, aluno in enumerate(alunos_da_turma_dama):
+                        st.session_state[f"chk_dama_{turma_dama_sel}_{idx_a}_{aluno}"] = False
                     st.rerun()
 
-            total_sel_d = sum(1 for aluno in alunos_da_turma_dama if st.session_state.get(f"chk_dama_{turma_dama_sel}_{aluno}", True))
+            total_sel_d = sum(1 for idx_a, aluno in enumerate(alunos_da_turma_dama) if st.session_state.get(f"chk_dama_{turma_dama_sel}_{idx_a}_{aluno}", True))
             st.info(f"📊 **{total_sel_d}** de **{len(alunos_da_turma_dama)}** alunos selecionados para Dama.")
 
-            with st.form("form_sel_dama"):
-                for aluno in alunos_da_turma_dama:
-                    st.checkbox(aluno, value=True, key=f"chk_dama_{turma_dama_sel}_{aluno}")
-                st.form_submit_button("💾 Salvar Participantes para o Sorteio")
+            for idx_a, aluno in enumerate(alunos_da_turma_dama):
+                st.checkbox(aluno, value=True, key=f"chk_dama_{turma_dama_sel}_{idx_a}_{aluno}")
 
-        alunos_participantes_dama = [al for al in alunos_da_turma_dama if st.session_state.get(f"chk_dama_{turma_dama_sel}_{al}", True)]
+        alunos_participantes_dama = [al for idx_a, al in enumerate(alunos_da_turma_dama) if st.session_state.get(f"chk_dama_{turma_dama_sel}_{idx_a}_{al}", True)]
 
         col_sd1, col_sd2 = st.columns(2)
         with col_sd1:
@@ -756,24 +752,22 @@ with tab_domino:
             col_b1, col_b2 = st.columns(2)
             with col_b1:
                 if st.button("☑️ Selecionar Todos", key="btn_sel_todos_dom"):
-                    for aluno in alunos_da_turma_dom:
-                        st.session_state[f"chk_domino_{turma_dom_sel}_{aluno}"] = True
+                    for idx_a, aluno in enumerate(alunos_da_turma_dom):
+                        st.session_state[f"chk_domino_{turma_dom_sel}_{idx_a}_{aluno}"] = True
                     st.rerun()
             with col_b2:
                 if st.button("❌ Desmarcar Todos", key="btn_desm_todos_dom"):
-                    for aluno in alunos_da_turma_dom:
-                        st.session_state[f"chk_domino_{turma_dom_sel}_{aluno}"] = False
+                    for idx_a, aluno in enumerate(alunos_da_turma_dom):
+                        st.session_state[f"chk_domino_{turma_dom_sel}_{idx_a}_{aluno}"] = False
                     st.rerun()
 
-            total_sel_dom = sum(1 for aluno in alunos_da_turma_dom if st.session_state.get(f"chk_domino_{turma_dom_sel}_{aluno}", True))
+            total_sel_dom = sum(1 for idx_a, aluno in enumerate(alunos_da_turma_dom) if st.session_state.get(f"chk_domino_{turma_dom_sel}_{idx_a}_{aluno}", True))
             st.info(f"📊 **{total_sel_dom}** de **{len(alunos_da_turma_dom)}** alunos selecionados para Dominó.")
 
-            with st.form("form_sel_dom"):
-                for aluno in alunos_da_turma_dom:
-                    st.checkbox(aluno, value=True, key=f"chk_domino_{turma_dom_sel}_{aluno}")
-                st.form_submit_button("💾 Salvar Participantes para o Sorteio")
+            for idx_a, aluno in enumerate(alunos_da_turma_dom):
+                st.checkbox(aluno, value=True, key=f"chk_domino_{turma_dom_sel}_{idx_a}_{aluno}")
 
-        alunos_participantes_dom = [al for al in alunos_da_turma_dom if st.session_state.get(f"chk_domino_{turma_dom_sel}_{al}", True)]
+        alunos_participantes_dom = [al for idx_a, al in enumerate(alunos_da_turma_dom) if st.session_state.get(f"chk_domino_{turma_dom_sel}_{idx_a}_{al}", True)]
 
         col_dom1, col_dom2 = st.columns(2)
         with col_dom1:
