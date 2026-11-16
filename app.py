@@ -313,15 +313,6 @@ def carregar_historico():
             pass
     return st.session_state.cache_offline_historico
 
-def resetar_historico():
-    global db
-    st.session_state.cache_offline_historico = []
-    if db is not None:
-        try:
-            db["historico_podio"].delete_many({})
-        except Exception:
-            pass
-
 def gerar_pdf_relatorio_completo(historico_dados, nome_torneio):
     buffer = io.BytesIO()
     doc = SimpleDocTemplate(buffer, pagesize=letter, rightMargin=30, leftMargin=30, topMargin=30, bottomMargin=30)
@@ -488,6 +479,42 @@ tab_xadrez, tab_dama, tab_domino, tab_historico, tab_alunos = st.tabs([
 ])
 
 # ==========================================
+# ABA 5: ALUNOS (GERENCIAMENTO)
+# ==========================================
+with tab_alunos:
+    st.markdown("## 👥 **CADASTRO GERAL DE ALUNOS**")
+    turmas_disp = carregar_turmas()
+    if not turmas_disp:
+        st.warning("Cadastre uma turma na barra lateral primeiro.")
+    else:
+        with st.form("form_cad_aluno"):
+            turma_aluno = st.selectbox("Selecione a Turma:", turmas_disp)
+            nome_aluno = st.text_input("Nome do Aluno(a):")
+            submit_aluno = st.form_submit_button("➕ Cadastrar Aluno")
+            if submit_aluno:
+                if nome_aluno.strip():
+                    cadastrar_aluno(nome_aluno.strip(), turma_aluno)
+                    st.success(f"Aluno(a) {nome_aluno.strip()} cadastrado(a) na turma {turma_aluno}!")
+                    st.rerun()
+                else:
+                    st.error("Digite o nome do aluno.")
+
+        st.divider()
+        st.subheader("Lista de Alunos Cadastrados")
+        alunos_cadastrados = carregar_alunos()
+        if not alunos_cadastrados:
+            st.info("Nenhum aluno cadastrado ainda.")
+        else:
+            for idx, a in enumerate(alunos_cadastrados):
+                col_info, col_del = st.columns([4, 1])
+                with col_info:
+                    st.markdown(f"• **{a['nome']}** — *{a['turma']}*")
+                with col_del:
+                    if st.button("🗑️ Excluir", key=f"del_aluno_{idx}"):
+                        deletar_aluno(a['nome'], a['turma'])
+                        st.rerun()
+
+# ==========================================
 # ABA 1: XADREZ
 # ==========================================
 with tab_xadrez:
@@ -501,8 +528,26 @@ with tab_xadrez:
         turma_selecionada = st.selectbox("🎯 Selecione a Turma:", turmas_disponiveis, key="turma_xadrez")
         pts_por_vitoria = st.radio("🏅 Pontuação por vitória:", [2, 10], horizontal=True, key="pts_xadrez")
         
-        alunos_filtrados = [a["nome"] for a in alunos_db if a["turma"] == turma_selecionada]
-        st.caption(f"Total de alunos na turma **{turma_selecionada}**: {len(alunos_filtrados)}")
+        alunos_da_turma = [a["nome"] for a in alunos_db if a["turma"] == turma_selecionada]
+        st.markdown(f"### 📋 Selecione os alunos da turma **{turma_selecionada}** que vão jogar Xadrez:")
+        
+        alunos_participantes_xadrez = []
+        if not alunos_da_turma:
+            st.info("Nenhum aluno cadastrado nesta turma na aba 'ALUNOS'.")
+        else:
+            with st.form("form_sel_xadrez"):
+                selecoes_x = {}
+                for aluno in alunos_da_turma:
+                    selecoes_x[aluno] = st.checkbox(aluno, value=True, key=f"chk_x_{aluno}")
+                btn_salvar_sel_x = st.form_submit_button("💾 Salvar Participantes para o Sorteio")
+                if btn_salvar_sel_x:
+                    st.success("Participantes atualizados para o sorteio!")
+            
+            alunos_participantes_xadrez = [al for al, sel in st.session_state.items() if al in alunos_da_turma and sel and str(al).startswith("chk_x_") == False] # simplificado abaixo com base no estado do checkbox atual
+            
+        # Filtro ativo real baseado nos checkboxes salvos/atuais
+        alunos_participantes_xadrez = [al for al in alunos_da_turma if st.session_state.get(f"chk_x_{aluno_nome := al}", True)]
+        st.caption(f"Total de participantes selecionados para Xadrez: **{len(alunos_participantes_xadrez)}**")
 
         col_sort, col_res = st.columns(2)
         with col_sort:
@@ -511,11 +556,11 @@ with tab_xadrez:
             btn_limpar = st.button("🗑️ Reiniciar Torneio", use_container_width=True, key="limp_x")
 
         if btn_iniciar:
-            if len(alunos_filtrados) < 2:
-                st.error("É necessário ter pelo menos 2 alunos cadastrados.")
+            if len(alunos_participantes_xadrez) < 2:
+                st.error("É necessário selecionar pelo menos 2 alunos participantes.")
             else:
                 resetar_torneio_turma(turma_selecionada, "Xadrez")
-                jogadores = alunos_filtrados.copy()
+                jogadores = alunos_participantes_xadrez.copy()
                 random.shuffle(jogadores)
                 confrontos = []
                 for i in range(0, len(jogadores), 2):
@@ -585,7 +630,20 @@ with tab_dama:
     else:
         turma_dama_sel = st.selectbox("🎯 Selecione a Turma:", turmas_dama, key="turma_dama")
         pts_dama = st.radio("🏅 Pontuação por vitória:", [2, 10], horizontal=True, key="pts_dama")
-        alunos_dama_filtrados = [a["nome"] for a in alunos_db if a["turma"] == turma_dama_sel]
+        
+        alunos_da_turma_dama = [a["nome"] for a in alunos_db if a["turma"] == turma_dama_sel]
+        st.markdown(f"### 📋 Selecione os alunos da turma **{turma_dama_sel}** que vão jogar Dama:")
+        
+        if not alunos_da_turma_dama:
+            st.info("Nenhum aluno cadastrado nesta turma na aba 'ALUNOS'.")
+        else:
+            with st.form("form_sel_dama"):
+                for aluno in alunos_da_turma_dama:
+                    st.checkbox(aluno, value=True, key=f"chk_d_{aluno}")
+                st.form_submit_button("💾 Salvar Participantes para o Sorteio")
+
+        alunos_participantes_dama = [al for al in alunos_da_turma_dama if st.session_state.get(f"chk_d_{al}", True)]
+        st.caption(f"Total de participantes selecionados para Dama: **{len(alunos_participantes_dama)}**")
 
         col_sd1, col_sd2 = st.columns(2)
         with col_sd1:
@@ -594,11 +652,11 @@ with tab_dama:
             btn_limp_dama = st.button("🗑️ Reiniciar DAMA", use_container_width=True)
 
         if btn_sort_dama:
-            if len(alunos_dama_filtrados) < 2:
-                st.error("São necessários pelo menos 2 alunos.")
+            if len(alunos_participantes_dama) < 2:
+                st.error("São necessários pelo menos 2 alunos participantes selecionados.")
             else:
                 resetar_torneio_turma(turma_dama_sel, "Dama")
-                jogadores = alunos_dama_filtrados.copy()
+                jogadores = alunos_participantes_dama.copy()
                 random.shuffle(jogadores)
                 confrontos = []
                 for i in range(0, len(jogadores), 2):
@@ -668,7 +726,20 @@ with tab_domino:
         tamanho_mesa = st.selectbox("👥 Alunos por Mesa:", [2, 3, 4], key="tam_mesa_dom")
         pts_dom = st.radio("🏅 Pontuação por vitória:", [2, 10], horizontal=True, key="pts_dom")
         
-        alunos_dom_filtrados = [a["nome"] for a in alunos_db if a["turma"] == turma_dom_sel]
+        alunos_da_turma_dom = [a["nome"] for a in alunos_db if a["turma"] == turma_dom_sel]
+        st.markdown(f"### 📋 Selecione os alunos da turma **{turma_dom_sel}** que vão jogar Dominó:")
+        
+        if not alunos_da_turma_dom:
+            st.info("Nenhum aluno cadastrado nesta turma na aba 'ALUNOS'.")
+        else:
+            with st.form("form_sel_dom"):
+                for aluno in alunos_da_turma_dom:
+                    st.checkbox(aluno, value=True, key=f"chk_dom_{aluno}")
+                st.form_submit_button("💾 Salvar Participantes para o Sorteio")
+
+        alunos_participantes_dom = [al for al in alunos_da_turma_dom if st.session_state.get(f"chk_dom_{al}", True)]
+        st.caption(f"Total de participantes selecionados para Dominó: **{len(alunos_participantes_dom)}**")
+
         col_dom1, col_dom2 = st.columns(2)
         with col_dom1:
             btn_sort_dom = st.button("🎲 Sortear Mesas de DOMINÓ", type="primary", use_container_width=True)
@@ -676,11 +747,11 @@ with tab_domino:
             btn_limp_dom = st.button("🗑️ Reiniciar DOMINÓ", use_container_width=True)
 
         if btn_sort_dom:
-            if len(alunos_dom_filtrados) < tamanho_mesa:
-                st.error(f"São necessários pelo menos {tamanho_mesa} alunos.")
+            if len(alunos_participantes_dom) < tamanho_mesa:
+                st.error(f"São necessários pelo menos {tamanho_mesa} alunos participantes selecionados.")
             else:
                 resetar_torneio_turma(turma_dom_sel, "Dominó")
-                jogadores = alunos_dom_filtrados.copy()
+                jogadores = alunos_participantes_dom.copy()
                 random.shuffle(jogadores)
                 mesas = [{"jogadores": jogadores[i:i + tamanho_mesa], "vencedor": None} for i in range(0, len(jogadores), tamanho_mesa)]
                 salvar_confrontos(turma_dom_sel, "Dominó", 1, mesas)
@@ -731,93 +802,37 @@ with tab_domino:
                             random.shuffle(vencedores_dom)
                             novas_mesas = [{"jogadores": vencedores_dom[i:i + tamanho_mesa], "vencedor": None} for i in range(0, len(vencedores_dom), tamanho_mesa)]
                             salvar_confrontos(turma_dom_sel, "Dominó", fase_dom_atual + 1, novas_mesas)
-                        st.toast("⚡ Avanço de Dominó realizado!", icon="🚀")
-                        st.rerun()
+                            st.toast("⚡ Avanço de Dominó realizado!", icon="🚀")
+                            st.rerun()
 
 # ==========================================
-# ABA 4: HISTÓRICO & RELATÓRIOS
+# ABA 4: HISTÓRICO
 # ==========================================
 with tab_historico:
     st.markdown("## 🏆 **HISTÓRICO DE CAMPEÕES & PÓDIOS**")
     historico_geral = carregar_historico()
 
-    col_h1, col_h2 = st.columns(2)
-    with col_h1:
-        if st.button("🗑️ Limpar Histórico de Pódios", use_container_width=True):
-            resetar_historico()
-            st.toast("Histórico limpo.", icon="🧹")
-            st.rerun()
-    with col_h2:
-        if historico_geral:
-            pdf_buffer = gerar_pdf_relatorio_completo(historico_geral, nome_torneio)
-            st.download_button(
-                label="📥 Baixar Relatório PDF (Completo)",
-                data=pdf_buffer,
-                file_name="relatorio_torneio_escolar.pdf",
-                mime="application/pdf",
-                use_container_width=True
-            )
-
-    st.divider()
     if not historico_geral:
-        st.info("Nenhum pódio registrado até o momento. Conclua os torneios para preencher o quadro.")
+        st.info("Nenhum pódio registrado até o momento.")
     else:
-        for reg in historico_geral:
-            turma = reg.get("turma", "Turma")
-            modalidade = reg.get("modalidade", "Modalidade")
-            resp = reg.get("responsavel", "Não informado")
-            podio = reg.get("podio", {})
-            
+        for h in historico_geral:
+            turma = h.get("turma", "Turma")
+            modalidade = h.get("modalidade", "Modalidade")
+            podio = h.get("podio", {})
             st.markdown(f"""
                 <div class="podio-container">
-                    <h4>🏅 {modalidade.upper()} — Turma: {turma}</h4>
-                    <p style="font-size: 12px; color: gray; margin-bottom: 10px;">Organizado por: {resp}</p>
+                    <h3>🎯 Turma: {turma} | Modalidade: {modalidade.upper()}</h3>
                     <div class="podio-ouro">🥇 1º Lugar (Ouro): {podio.get('1º', 'A definir')}</div>
                     <div class="podio-prata">🥈 2º Lugar (Prata): {podio.get('2º', 'A definir')}</div>
                     <div class="podio-bronze">🥉 3º Lugar (Bronze): {podio.get('3º', 'A definir')}</div>
                 </div>
             """, unsafe_allow_html=True)
 
-# ==========================================
-# ABA 5: GESTÃO DE ALUNOS
-# ==========================================
-with tab_alunos:
-    st.markdown("## 👥 **GESTÃO DE ALUNOS**")
-    turmas_cadastradas = carregar_turmas()
-    
-    if not turmas_cadastradas:
-        st.warning("Cadastre pelo menos uma turma na barra lateral primeiro.")
-    else:
-        aba_cad, aba_ger = st.tabs(["➕ Cadastrar Aluno", "📋 Alunos Matriculados"])
-        
-        with aba_cad:
-            nome_aluno = st.text_input("Nome Completo do Aluno:")
-            turma_aluno = st.selectbox("Selecione a Turma:", turmas_cadastradas, key="turma_aluno_sel")
-            if st.button("Cadastrar Aluno", type="primary", use_container_width=True):
-                if nome_aluno.strip():
-                    cadastrar_aluno(nome_aluno.strip(), turma_aluno)
-                    st.toast(f"✅ Aluno(a) {nome_aluno} cadastrado(a)!", icon="🎉")
-                    st.rerun()
-                else:
-                    st.warning("Digite o nome do aluno.")
-        
-        with aba_ger:
-            alunos_cad = carregar_alunos()
-            if not alunos_cad:
-                st.info("Nenhum aluno cadastrado.")
-            else:
-                turma_filtro = st.selectbox("Filtrar por Turma:", ["Todas"] + turmas_cadastradas)
-                filtrados = alunos_cad if turma_filtro == "Todas" else [a for a in alunos_cad if a["turma"] == turma_filtro]
-                
-                st.write(f"Total exibido: {len(filtrados)}")
-                for idx, a in enumerate(filtrados):
-                    col_a1, col_a2, col_a3 = st.columns([3, 2, 1])
-                    with col_a1:
-                        st.write(f"**{a['nome']}**")
-                    with col_a2:
-                        st.write(f"Turma: {a['turma']}")
-                    with col_a3:
-                        if st.button("Excluir", key=f"del_aluno_{idx}_{a['nome']}"):
-                            deletar_aluno(a['nome'], a['turma'])
-                            st.toast(f"🗑️ Aluno(a) removido(a)!", icon="⚠️")
-                            st.rerun()
+        pdf_buffer = gerar_pdf_relatorio_completo(historico_geral, nome_torneio)
+        st.download_button(
+            label="📄 Baixar Relatório em PDF",
+            data=pdf_buffer,
+            file_name="relatorio_campeoes.json" if False else "relatorio_torneio.pdf",
+            mime="application/pdf",
+            use_container_width=True
+        )
