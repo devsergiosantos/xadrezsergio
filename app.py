@@ -352,6 +352,39 @@ def gerar_pdf_relatorio_completo(historico_dados, nome_torneio):
     buffer.seek(0)
     return buffer
 
+def gerar_pdf_lista_alunos(turma_nome, alunos_lista):
+    buffer = io.BytesIO()
+    doc = SimpleDocTemplate(buffer, pagesize=letter, rightMargin=30, leftMargin=30, topMargin=30, bottomMargin=30)
+    story = []
+    
+    styles = getSampleStyleSheet()
+    title_style = ParagraphStyle(
+        'TitleStyle', parent=styles['Heading1'], fontSize=16, alignment=1, spaceAfter=15, textColor=colors.HexColor('#1E3A8A')
+    )
+    
+    story.append(Paragraph(f"<b>LISTA DE ALUNOS - TURMA: {turma_nome.upper()}</b>", title_style))
+    story.append(Spacer(1, 10))
+
+    tabela_dados = [["Nº", "Nome do Aluno(a)"]]
+    for idx, aluno in enumerate(alunos_lista, start=1):
+        tabela_dados.append([str(idx), aluno['nome']])
+
+    t = Table(tabela_dados, colWidths=[50, 450])
+    t.setStyle(TableStyle([
+        ('BACKGROUND', (0,0), (-1,0), colors.HexColor('#2563EB')),
+        ('TEXTCOLOR', (0,0), (-1,0), colors.whitesmoke),
+        ('ALIGN', (0,0), (-1,-1), 'LEFT'),
+        ('FONTNAME', (0,0), (-1,0), 'Helvetica-Bold'),
+        ('FONTSIZE', (0,0), (-1,0), 10),
+        ('GRID', (0,0), (-1,-1), 0.5, colors.HexColor('#D1D5DB')),
+        ('VALIGN', (0,0), (-1,-1), 'MIDDLE'),
+        ('FONTSIZE', (0,1), (-1,-1), 10),
+    ]))
+    story.append(t)
+    doc.build(story)
+    buffer.seek(0)
+    return buffer
+
 with st.sidebar:
     st.markdown("""
         <div style="text-align: center; padding: 10px 0px 5px 0px;">
@@ -500,17 +533,37 @@ with tab_alunos:
                     st.error("Digite o nome do aluno.")
 
         st.divider()
-        st.subheader("Lista de Alunos Cadastrados")
+        st.subheader(f"Lista de Alunos da Turma: {turma_aluno}")
+        
+        # Barra de pesquisa de aluno por nome
+        pesquisa_aluno = st.text_input("🔍 Pesquisar aluno por nome:", key="busca_aluno_geral")
+        
         alunos_cadastrados = carregar_alunos()
-        if not alunos_cadastrados:
-            st.info("Nenhum aluno cadastrado ainda.")
+        alunos_filtrados_geral = [a for a in alunos_cadastrados if a['turma'] == turma_aluno]
+        
+        if pesquisa_aluno.strip():
+            alunos_filtrados_geral = [a for a in alunos_filtrados_geral if pesquisa_aluno.lower() in a['nome'].lower()]
+
+        if not alunos_filtrados_geral:
+            st.info(f"Nenhum aluno encontrado na turma {turma_aluno}.")
         else:
-            for idx, a in enumerate(alunos_cadastrados):
+            # Botão para baixar lista em PDF da turma filtrada
+            pdf_lista_buffer = gerar_pdf_lista_alunos(turma_aluno, alunos_filtrados_geral)
+            st.download_button(
+                label=f"📄 Baixar Lista da Turma {turma_aluno} em PDF",
+                data=pdf_lista_buffer,
+                file_name=f"lista_alunos_{turma_aluno.replace(' ', '_')}.pdf",
+                mime="application/pdf",
+                use_container_width=True
+            )
+            st.write("")
+
+            for idx, a in enumerate(alunos_filtrados_geral):
                 col_info, col_del = st.columns([4, 1])
                 with col_info:
-                    st.markdown(f"• **{a['nome']}** — *{a['turma']}*")
+                    st.markdown(f"• **{a['nome']}**")
                 with col_del:
-                    if st.button("🗑️ Excluir", key=f"del_aluno_{idx}"):
+                    if st.button("🗑️ Excluir", key=f"del_aluno_{turma_aluno}_{idx}_{a['nome']}"):
                         deletar_aluno(a['nome'], a['turma'])
                         st.rerun()
 
